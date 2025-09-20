@@ -30,12 +30,6 @@ This guide walks through the first workflow after you launch the application. Fo
 - Create groups under Settings -> Groups if you plan to restrict operations to specific teams.
 - When SSO is enabled, every user still needs to exist in TTPx ahead of time with the correct role and group membership.
 
-<p align="center">
-  <a href="images/users.png">
-    <img src="images/users.png" width="540" alt="Screenshot - Users" />
-  </a>
-</p>
-
 ## 3. Create an Operation
 
 - Navigate to Operations and click New.
