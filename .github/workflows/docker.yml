@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [ main ]
   release:
+    # Publishing a release for an existing tag (via the GitHub UI) does not
+    # emit a push event, so include this trigger to build the image when a
+    # release goes live.
     types: [ published ]
   workflow_dispatch: {}
 
