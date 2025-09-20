@@ -77,9 +77,9 @@ const navigation: NavItem[] = [
         href: "/settings/groups",
       },
       {
-        key: "database",
-        label: "Database",
-        href: "/settings/database",
+        key: "data",
+        label: "Data",
+        href: "/settings/data",
       },
       
     ],

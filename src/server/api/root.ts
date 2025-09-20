@@ -4,7 +4,7 @@ import { groupsRouter } from "@/server/api/routers/groups";
 import { operationsRouter } from "@/server/api/routers/operations";
 import { techniquesRouter } from "@/server/api/routers/techniques";
 import { outcomesRouter } from "@/server/api/routers/outcomes";
-import { databaseRouter } from "@/server/api/routers/database";
+import { dataRouter } from "@/server/api/routers/data";
 import { analyticsRouter } from "@/server/api/routers/analytics";
 import { importRouter } from "@/server/api/routers/import";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
@@ -21,7 +21,7 @@ export const appRouter = createTRPCRouter({
   operations: operationsRouter,
   techniques: techniquesRouter,
   outcomes: outcomesRouter,
-  database: databaseRouter,
+  data: dataRouter,
   analytics: analyticsRouter,
   import: importRouter,
 });

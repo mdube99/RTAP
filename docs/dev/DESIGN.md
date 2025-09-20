@@ -91,7 +91,7 @@ Unified pattern across tabs: SettingsHeader + EntityListCard + EntityModal; Inli
 - Users: create/edit; role picker; delete via ConfirmModal.
 - Groups: create/edit; manage membership; one Tag per Group; delete via ConfirmModal.
 - Taxonomy: Tags, Tool Categories (by type), Tools, Threat Actors (attach ATT&CK techniques), Crown Jewels, Log Sources.
-- Database: stats; Backup (download JSON, selectable sections), Restore (ConfirmModal + file, selectable sections, optional clear), Clear Data (ConfirmModal per selection).
+- Data: overview metrics; export JSON (operations + taxonomy); import with optional clear; manual clear toggles via ConfirmModal.
 
 ## Data & Validation
 

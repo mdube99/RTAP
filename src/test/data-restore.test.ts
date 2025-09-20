@@ -1,0 +1,113 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { UserRole } from "@prisma/client";
+
+import { dataRouter } from "@/server/api/routers/data";
+
+vi.mock("@/server/db", () => ({
+  db: {
+    $transaction: vi.fn(),
+    threatActor: { createMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn() },
+    crownJewel: { createMany: vi.fn(), deleteMany: vi.fn() },
+    tag: { createMany: vi.fn(), deleteMany: vi.fn() },
+    toolCategory: { createMany: vi.fn(), deleteMany: vi.fn() },
+    tool: { createMany: vi.fn(), deleteMany: vi.fn() },
+    logSource: { createMany: vi.fn(), deleteMany: vi.fn() },
+    operation: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    technique: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    outcome: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    attackFlowLayout: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    mitreTactic: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    mitreTechnique: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+    mitreSubTechnique: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+  },
+}));
+
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
+
+const createCaller = (role: UserRole) =>
+  dataRouter.createCaller({
+    headers: new Headers(),
+    session: { user: { id: "u1", role }, expires: "2099-01-01" },
+    db: mockDb,
+    requestId: "data-restore-test",
+  });
+
+describe("Data Restore", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.$transaction.mockImplementation(async (callback) => {
+      return await callback(mockDb);
+    });
+  });
+
+  it("restores taxonomy and operations with clearing", async () => {
+    const caller = createCaller(UserRole.ADMIN);
+
+    mockDb.threatActor.update.mockResolvedValue({});
+
+    const payload = {
+      mitreTactics: [{ id: "tactic-1", name: "Initial Access", shortName: "TA0001" }],
+      mitreTechniques: [{ id: "tech-1", name: "Phishing", tacticId: "tactic-1" }],
+      mitreSubTechniques: [],
+      threatActors: [{ id: "ta1", name: "APT29", description: "desc" }],
+      crownJewels: [{ id: "cj1", name: "DB", description: "desc" }],
+      tags: [{ id: "tag1", name: "Stealth", description: "d" }],
+      toolCategories: [{ id: "cat1", name: "EDR", type: "DEFENSIVE" as const }],
+      tools: [{ id: "tool1", name: "Falcon", categoryId: "cat1", type: "DEFENSIVE" as const }],
+      logSources: [{ id: "log1", name: "SIEM", description: "d" }],
+      operations: [
+        { id: 1, name: "Op1", description: "d", createdById: "u1", tags: [{ id: "tag1" }], crownJewels: [{ id: "cj1" }] },
+      ],
+      techniques: [{ id: "tech-inst", description: "d", operationId: 1, tools: [{ id: "tool1" }] }],
+      outcomes: [
+        {
+          id: "out1",
+          type: "DETECTION" as const,
+          status: "DETECTED" as const,
+          techniqueId: "tech-inst",
+          tools: [{ id: "tool1" }],
+          logSources: [{ id: "log1" }],
+        },
+      ],
+      attackFlowLayouts: [{ id: "layout1", operationId: 1, nodes: [], edges: [] }],
+      threatActorTechniqueLinks: [{ threatActorId: "ta1", mitreTechniqueId: "tech-1" }],
+    };
+
+    const backup = JSON.stringify({ version: "2.0", timestamp: new Date().toISOString(), data: payload });
+
+    await caller.restore({ backupData: backup, clearBefore: true });
+
+    expect(mockDb.operation.deleteMany).toHaveBeenCalled();
+    expect(mockDb.tool.deleteMany).toHaveBeenCalled();
+    expect(mockDb.mitreTactic.deleteMany).toHaveBeenCalled();
+    expect(mockDb.threatActor.createMany).toHaveBeenCalledWith({ data: payload.threatActors });
+    expect(mockDb.operation.create).toHaveBeenCalled();
+    expect(mockDb.technique.create).toHaveBeenCalled();
+    expect(mockDb.outcome.create).toHaveBeenCalled();
+    expect(mockDb.attackFlowLayout.create).toHaveBeenCalled();
+    expect(mockDb.threatActor.update).toHaveBeenCalledWith({
+      where: { id: "ta1" },
+      data: { mitreTechniques: { connect: { id: "tech-1" } } },
+    });
+  });
+
+  it("skips clearing when clearBefore is false", async () => {
+    const caller = createCaller(UserRole.ADMIN);
+    mockDb.threatActor.update.mockResolvedValue({});
+
+    const payload = { threatActors: [], operations: [], techniques: [], outcomes: [], attackFlowLayouts: [] };
+    const backup = JSON.stringify({ version: "2.0", timestamp: new Date().toISOString(), data: payload });
+
+    await caller.restore({ backupData: backup, clearBefore: false });
+
+    expect(mockDb.operation.deleteMany).not.toHaveBeenCalled();
+    expect(mockDb.tool.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid backup data", async () => {
+    const caller = createCaller(UserRole.ADMIN);
+
+    await expect(caller.restore({ backupData: "not-json", clearBefore: true })).rejects.toThrow("Invalid backup file");
+  });
+});
