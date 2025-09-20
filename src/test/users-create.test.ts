@@ -55,6 +55,30 @@ describe("Users Router — create & validation", () => {
     expect(mockCreateLoginLink).toHaveBeenCalledWith(mockDb, { email: newUserData.email });
   });
 
+  it("normalizes email casing before persisting", async () => {
+    const newUserData = { email: "NewUser@TEST.com ", name: "New User", role: UserRole.OPERATOR } as const;
+    const normalizedEmail = "newuser@test.com";
+    const mockCreatedUser = {
+      id: "new-user-id",
+      name: newUserData.name,
+      email: normalizedEmail,
+      role: newUserData.role,
+      lastLogin: null,
+      _count: { authenticators: 0 },
+    };
+    mockDb.user.findUnique.mockResolvedValue(null);
+    mockDb.user.create.mockResolvedValue(mockCreatedUser);
+    const ctx = createTestContext(mockDb, UserRole.ADMIN);
+    const caller = usersRouter.createCaller(ctx);
+    await caller.create(newUserData);
+
+    expect(mockDb.user.findUnique).toHaveBeenCalledWith({ where: { email: normalizedEmail } });
+    expect(mockDb.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ email: normalizedEmail }) }),
+    );
+    expect(mockCreateLoginLink).toHaveBeenCalledWith(mockDb, { email: normalizedEmail });
+  });
+
   it("throws when email already exists", async () => {
     mockDb.user.findUnique.mockResolvedValue({ id: "existing", email: "existing@test.com" });
     const ctx = createTestContext(mockDb, UserRole.ADMIN);

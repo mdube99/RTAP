@@ -13,12 +13,17 @@ export type UpdateUserDTO = {
   role?: UserRole;
 };
 
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 export async function createUser(db: PrismaClient, dto: CreateUserDTO) {
-  const existing = await db.user.findUnique({ where: { email: dto.email } });
+  const email = normalizeEmail(dto.email);
+  const existing = await db.user.findUnique({ where: { email } });
   if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "User with this email already exists" });
   return db.user.create({
     data: {
-      email: dto.email,
+      email,
       name: dto.name,
       role: dto.role,
     },
@@ -27,15 +32,19 @@ export async function createUser(db: PrismaClient, dto: CreateUserDTO) {
 }
 
 export async function updateUser(db: PrismaClient, dto: UpdateUserDTO) {
-  const { id, ...updateData } = dto;
-  if (updateData.email) {
-    const existing = await db.user.findFirst({ where: { email: updateData.email, id: { not: id } } });
+  const { id, email: emailInput, ...updateData } = dto;
+  const email = emailInput ? normalizeEmail(emailInput) : undefined;
+  if (email) {
+    const existing = await db.user.findFirst({ where: { email, id: { not: id } } });
     if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "Email is already taken by another user" });
   }
 
   return db.user.update({
     where: { id },
-    data: updateData,
+    data: {
+      ...updateData,
+      ...(email ? { email } : {}),
+    },
     select: defaultUserSelect(),
   });
 }

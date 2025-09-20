@@ -43,6 +43,34 @@ describe("Users Router — update/delete", () => {
     });
   });
 
+  it("normalizes email casing before updating", async () => {
+    const updateData = {
+      id: "user-123",
+      name: "Updated Name",
+      email: "Updated@Test.com ",
+      role: UserRole.OPERATOR,
+    } as const;
+    const normalizedEmail = "updated@test.com";
+    mockDb.user.findFirst.mockResolvedValue(null);
+    mockDb.user.update.mockResolvedValue({
+      id: updateData.id,
+      name: updateData.name,
+      email: normalizedEmail,
+      role: updateData.role,
+      lastLogin: null,
+      _count: { authenticators: 0 },
+    });
+    const ctx = createTestContext(mockDb, UserRole.ADMIN);
+    const caller = usersRouter.createCaller(ctx);
+    const res = await caller.update(updateData);
+
+    expect(mockDb.user.findFirst).toHaveBeenCalledWith({ where: { email: normalizedEmail, id: { not: updateData.id } } });
+    expect(mockDb.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ email: normalizedEmail }) }),
+    );
+    expect(res.email).toBe(normalizedEmail);
+  });
+
   it("prevents admin from removing their own admin role", async () => {
     const adminId = "admin-123";
     const ctx = createTestContext(mockDb, UserRole.ADMIN, adminId);
