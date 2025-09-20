@@ -9,12 +9,12 @@ export default async function SignInPage(props: { searchParams?: Promise<{ callb
   }
 
   const { callbackUrl = "/", error } = (await props.searchParams) ?? {};
-  const credsEnabled = process.env.AUTH_CREDENTIALS_ENABLED !== "false"; // default enabled
+  const passkeysEnabled = process.env.AUTH_PASSKEYS_ENABLED === "true";
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
   return (
     <SignInPageClient
-      credsEnabled={credsEnabled}
+      passkeysEnabled={passkeysEnabled}
       googleEnabled={googleEnabled}
       callbackUrl={callbackUrl}
       initialError={error}

@@ -53,6 +53,18 @@ const outcomeSchema = z.object({
 });
 const attackFlowLayoutSchema = z.object({ id: z.string().optional(), operationId: z.number(), nodes: z.custom<Prisma.InputJsonValue>(), edges: z.custom<Prisma.InputJsonValue>() });
 const threatActorTechniqueLinkSchema = z.object({ threatActorId: z.string(), mitreTechniqueId: z.string() });
+const authenticatorSchema = z.object({
+  id: z.string().optional(),
+  credentialID: z.string(),
+  userId: z.string(),
+  providerAccountId: z.string(),
+  credentialPublicKey: z.string(),
+  counter: z.number(),
+  credentialDeviceType: z.string(),
+  credentialBackedUp: z.boolean(),
+  transports: z.string().optional().nullable(),
+});
+
 const backupPayloadSchema = z.object({
   threatActors: z.array(threatActorSchema).optional(),
   crownJewels: z.array(crownJewelSchema).optional(),
@@ -65,7 +77,14 @@ const backupPayloadSchema = z.object({
   outcomes: z.array(outcomeSchema).optional(),
   attackFlowLayouts: z.array(attackFlowLayoutSchema).optional(),
   threatActorTechniqueLinks: z.array(threatActorTechniqueLinkSchema).optional(),
-  users: z.array(z.object({ id: z.string().optional(), email: z.string().email(), name: z.string().nullable().optional(), role: z.enum(["ADMIN", "OPERATOR", "VIEWER"]).optional(), password: z.string().optional() })).optional(),
+  users: z.array(z.object({
+    id: z.string().optional(),
+    email: z.string().email(),
+    name: z.string().nullable().optional(),
+    role: z.enum(["ADMIN", "OPERATOR", "VIEWER"]).optional(),
+    lastLogin: z.coerce.date().optional().nullable(),
+  })).optional(),
+  authenticators: z.array(authenticatorSchema).optional(),
   groups: z.array(z.object({ id: z.string().optional(), name: z.string(), description: z.string() })).optional(),
   userGroups: z.array(z.object({ userId: z.string(), groupId: z.string() })).optional(),
   mitreTactics: z.array(z.unknown()).optional(),
@@ -110,13 +129,32 @@ export const databaseRestoreRouter = createTRPCRouter({
                   update: {
                     name: user.name ?? undefined,
                     role: user.role ?? undefined,
-                    password: user.password ?? undefined,
+                    lastLogin: user.lastLogin ?? undefined,
                   },
                   create: {
                     email: user.email,
                     name: user.name ?? null,
                     role: user.role ?? "VIEWER",
-                    password: user.password ?? null,
+                    lastLogin: user.lastLogin ?? null,
+                  },
+                });
+              }
+            }
+
+            if (payload.authenticators) {
+              await tx.authenticator.deleteMany();
+              for (const auth of payload.authenticators) {
+                await tx.authenticator.create({
+                  data: {
+                    id: auth.id,
+                    credentialID: auth.credentialID,
+                    userId: auth.userId,
+                    providerAccountId: auth.providerAccountId,
+                    credentialPublicKey: auth.credentialPublicKey,
+                    counter: auth.counter,
+                    credentialDeviceType: auth.credentialDeviceType,
+                    credentialBackedUp: auth.credentialBackedUp,
+                    transports: auth.transports ?? null,
                   },
                 });
               }

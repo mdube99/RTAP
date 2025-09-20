@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 
-// Mock FS writes to avoid touching disk
-vi.mock("fs", () => ({ mkdirSync: vi.fn(), writeFileSync: vi.fn(), default: {} }));
-
 // Mock MITRE data provider with minimal valid data
 vi.mock("@/lib/mitreStix", () => ({
   getMitreMetadata: () => ({ name: "Enterprise ATT&CK", version: "test" }),
@@ -15,7 +12,7 @@ vi.mock("@/lib/mitreStix", () => ({
 describe("ensureInitialized", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.INITIAL_ADMIN_PASSWORD = "test-password";
+    delete process.env.INITIAL_ADMIN_EMAIL;
   });
 
   it("creates admin when no users and seeds MITRE when empty", async () => {
@@ -29,13 +26,17 @@ describe("ensureInitialized", () => {
     await ensureInitialized(db);
 
     expect(user.upsert).toHaveBeenCalled();
-    const upsertArg = (user.upsert as unknown as jest.Mock).mock.calls[0]?.[0] as unknown as {
-      update: Record<string, unknown>; create: Record<string, unknown>;
+    const upsertArg = (user.upsert as any).mock.calls[0]?.[0] as {
+      update: Record<string, unknown>;
+      create: Record<string, unknown>;
     } | undefined;
-    if (upsertArg) {
-      expect(upsertArg.update).toEqual(expect.objectContaining({ mustChangePassword: true }));
-      expect(upsertArg.create).toEqual(expect.objectContaining({ mustChangePassword: true }));
-    }
+    expect(upsertArg?.create).toMatchObject({
+      email: "admin@example.com",
+      name: "Admin User",
+      role: "ADMIN",
+    });
+    expect(upsertArg?.update).toMatchObject({ role: "ADMIN" });
+
     expect(mitreTactic.upsert).toHaveBeenCalled();
     expect(mitreTechnique.upsert).toHaveBeenCalled();
     expect(mitreSubTechnique.upsert).toHaveBeenCalled();

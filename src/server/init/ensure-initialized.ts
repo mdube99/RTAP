@@ -1,8 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { UserRole } from "@prisma/client";
-import { readFileSync } from "fs";
 import { logger } from "@/server/logger";
-import { hashPassword } from "@/server/auth/password";
 import {
   getMitreMetadata,
   getMitreTactics,
@@ -19,46 +17,17 @@ export function ensureInitialized(db: PrismaClient): Promise<void> {
     // 1) Ensure admin exists (if no users at all)
     const userCount = await db.user.count();
     if (userCount === 0) {
-      const defaultEmail = process.env.INITIAL_ADMIN_EMAIL ?? "admin@example.com";
-      // Require operator-supplied password in all environments (dev and prod)
-      const providedPassword = (() => {
-        const direct = process.env.INITIAL_ADMIN_PASSWORD;
-        const filePath = process.env.INITIAL_ADMIN_PASSWORD_FILE;
-        if (direct && direct.trim().length > 0) return direct;
-        if (filePath && filePath.trim().length > 0) {
-          try {
-            return readFileSync(filePath, "utf-8").trim();
-          } catch {
-            // ignore; handled below
-          }
-        }
-        return undefined;
-      })();
+      const defaultEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase() ?? "admin@example.com";
 
-      if (!providedPassword) {
-        throw new Error(
-          "Missing INITIAL_ADMIN_PASSWORD (or *_FILE) for first-run initialization.",
-        );
-      }
-
-      // Choose password depending on environment
-      const passwordPlain = providedPassword;
-      const passwordHash = await hashPassword(passwordPlain);
-
-      // Upsert admin by email to be race safe
       await db.user.upsert({
         where: { email: defaultEmail },
-        update: { role: UserRole.ADMIN, password: passwordHash, mustChangePassword: true },
+        update: { role: UserRole.ADMIN },
         create: {
           email: defaultEmail,
           name: "Admin User",
-          password: passwordHash,
-          mustChangePassword: true,
           role: UserRole.ADMIN,
         },
       });
-
-      // No auto-generation or file write in any environment; operator must supply initial password
     }
 
     // 2) Ensure MITRE data exists

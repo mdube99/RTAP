@@ -15,15 +15,21 @@ type SimpleUser = {
   email: string;
   role: UserRole;
   lastLogin: Date | null;
-  twoFactorEnabled: boolean;
-  mustChangePassword: boolean;
+  passkeyCount: number;
 };
+
+interface PendingLink {
+  email: string;
+  url: string;
+  expires: string;
+}
 
 export default function UsersTab() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SimpleUser | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<SimpleUser | null>(null);
-  const [confirmDisable2fa, setConfirmDisable2fa] = useState<SimpleUser | null>(null);
+  const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   // Queries
   const { data: users, isLoading } = api.users.list.useQuery();
@@ -31,8 +37,14 @@ export default function UsersTab() {
   // Mutations
   const utils = api.useUtils();
   const createMutation = api.users.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       void utils.users.invalidate();
+      setIsCreateModalOpen(false);
+      setPendingLink({
+        email: data.user.email,
+        url: data.loginLink.url,
+        expires: typeof data.loginLink.expires === "string" ? data.loginLink.expires : data.loginLink.expires.toISOString(),
+      });
     },
   });
 
@@ -50,36 +62,48 @@ export default function UsersTab() {
     },
   });
 
-  const disable2faMutation = api.users.adminDisableTotp.useMutation({
-    onSuccess: () => {
+  const loginLinkMutation = api.users.issueLoginLink.useMutation({
+    onSuccess: (data, variables) => {
       void utils.users.invalidate();
-      setConfirmDisable2fa(null);
+      const user = users?.find((u) => u.id === variables.id);
+      setPendingLink({
+        email: user?.email ?? "",
+        url: data.url,
+        expires: typeof data.expires === "string" ? data.expires : data.expires.toISOString(),
+      });
     },
   });
 
-  const handleCreate = async (
-    data: {
-      name: string;
-      email: string;
-      password: string;
-      role: UserRole;
-      mustChangePassword: boolean;
-    },
-  ) => {
+  const handleCreate = async (data: { name: string; email: string; role: UserRole }) => {
     try {
       await createMutation.mutateAsync(data);
-      setIsCreateModalOpen(false);
     } catch {
       // Errors are handled via mutation state
     }
   };
 
-  const handleUpdate = (id: string, data: { name: string; email: string; role: UserRole; mustChangePassword: boolean }) => {
-    updateMutation.mutate({ id, name: data.name, email: data.email, role: data.role, mustChangePassword: data.mustChangePassword });
+  const handleUpdate = (id: string, data: { name: string; email: string; role: UserRole }) => {
+    updateMutation.mutate({ id, ...data });
   };
 
   const handleDelete = (id: string) => {
     deleteMutation.mutate({ id });
+  };
+
+  const handleIssueLink = (user: SimpleUser) => {
+    loginLinkMutation.mutate({ id: user.id });
+  };
+
+  const copyLink = async () => {
+    if (!pendingLink) return;
+    try {
+      await navigator.clipboard.writeText(pendingLink.url);
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 1500);
+    } catch {
+      setCopyStatus("error");
+      setTimeout(() => setCopyStatus("idle"), 1500);
+    }
   };
 
   const getRoleColor = (role: UserRole) => {
@@ -89,12 +113,19 @@ export default function UsersTab() {
       case UserRole.OPERATOR:
         return "text-[var(--color-warning)] bg-[var(--color-warning)]/20 border-[var(--color-warning)]/30";
       case UserRole.VIEWER:
-        return "text-[var(--color-text-secondary)] bg-[var(--color-surface-elevated)] border-[var(--color-border)]";
       default:
         return "text-[var(--color-text-secondary)] bg-[var(--color-surface-elevated)] border-[var(--color-border)]";
     }
   };
 
+  const renderLastLogin = (date: Date | null) => {
+    if (!date) return "Never";
+    try {
+      return new Date(date).toLocaleString();
+    } catch {
+      return String(date);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -108,13 +139,32 @@ export default function UsersTab() {
     <div className="space-y-6">
       <SettingsHeader title="Users" onNew={() => setIsCreateModalOpen(true)} />
 
+      {pendingLink && (
+        <Card className="border border-[var(--color-border)] bg-[var(--color-surface-elevated)]">
+          <CardContent className="p-4 space-y-3">
+            <div>
+              <p className="text-sm text-[var(--color-text-secondary)]">One-time login link for {pendingLink.email}</p>
+              <Input readOnly value={pendingLink.url} className="mt-2" />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="secondary" size="sm" onClick={copyLink}>
+                {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy link"}
+              </Button>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Expires at {new Date(pendingLink.expires).toLocaleString()}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4">
-          {users?.map((user: SimpleUser) => (
+        {users?.map((user) => (
           <Card key={user.id}>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-3">
                     <h4 className="font-medium text-[var(--color-text-primary)]">
                       {user.name ?? "Unnamed User"}
                     </h4>
@@ -122,15 +172,23 @@ export default function UsersTab() {
                       {user.role}
                     </span>
                   </div>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    {user.email}
-                  </p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{user.email}</p>
                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                      Last login: {user.lastLogin ? user.lastLogin.toLocaleString() : "Never"} • 2FA {user.twoFactorEnabled ? "Enabled" : "Disabled"}
-                    </p>
+                    Last login: {renderLastLogin(user.lastLogin)} • Passkeys {user.passkeyCount > 0 ? "Enrolled" : "Not enrolled"}
+                  </p>
                 </div>
-                <div className="ml-4">
+                <div className="flex flex-col items-end gap-2">
                   <InlineActions onEdit={() => setEditingUser(user)} onDelete={() => setConfirmDelete(user)} />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleIssueLink(user)}
+                    disabled={loginLinkMutation.isPending && loginLinkMutation.variables?.id === user.id}
+                  >
+                    {loginLinkMutation.isPending && loginLinkMutation.variables?.id === user.id
+                      ? "Generating..."
+                      : "Generate login link"}
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -147,11 +205,7 @@ export default function UsersTab() {
       {isCreateModalOpen && (
         <UserModal
           title="Create User"
-          onSubmit={(data) => {
-            if ('password' in data) {
-              void handleCreate(data);
-            }
-          }}
+          onSubmit={handleCreate}
           onCancel={() => setIsCreateModalOpen(false)}
           isLoading={createMutation.isPending}
         />
@@ -161,19 +215,9 @@ export default function UsersTab() {
         <UserModal
           title="Edit User"
           initialData={editingUser}
-          onSubmit={(data) => {
-            if (!('password' in data)) {
-              handleUpdate(editingUser.id, data);
-            }
-          }}
+          onSubmit={(data) => handleUpdate(editingUser.id, data)}
           onCancel={() => setEditingUser(null)}
           isLoading={updateMutation.isPending}
-          hidePassword
-          onDisable2fa={
-            editingUser.twoFactorEnabled
-              ? () => setConfirmDisable2fa(editingUser)
-              : undefined
-          }
         />
       )}
 
@@ -190,26 +234,11 @@ export default function UsersTab() {
           loading={deleteMutation.isPending}
         />
       )}
-
-      {confirmDisable2fa && (
-        <ConfirmModal
-          open
-          title="Disable two-factor authentication?"
-          description={`This will remove TOTP for ${confirmDisable2fa.email}.`}
-          confirmLabel="Disable"
-          cancelLabel="Cancel"
-          onConfirm={() => disable2faMutation.mutate({ id: confirmDisable2fa.id })}
-          onCancel={() => setConfirmDisable2fa(null)}
-          loading={disable2faMutation.isPending}
-        />
-      )}
     </div>
   );
 }
 
-type UserModalSubmitData =
-  | { name: string; email: string; password: string; role: UserRole; mustChangePassword: boolean }  // Create mode
-  | { name: string; email: string; role: UserRole; mustChangePassword: boolean };                   // Edit mode
+type UserModalSubmitData = { name: string; email: string; role: UserRole };
 
 interface UserModalProps {
   title: string;
@@ -217,39 +246,23 @@ interface UserModalProps {
   onSubmit: (data: UserModalSubmitData) => void;
   onCancel: () => void;
   isLoading: boolean;
-  hidePassword?: boolean;
-  onDisable2fa?: () => void;
 }
 
-function UserModal({ title, initialData, onSubmit, onCancel, isLoading, hidePassword, onDisable2fa }: UserModalProps) {
+function UserModal({ title, initialData, onSubmit, onCancel, isLoading }: UserModalProps) {
   const [name, setName] = useState(initialData?.name ?? "");
   const [email, setEmail] = useState(initialData?.email ?? "");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>(initialData?.role ?? UserRole.VIEWER);
-  const [resetMode, setResetMode] = useState(false);
-  const [newPwd, setNewPwd] = useState("");
-  const [forceReset, setForceReset] = useState(initialData?.mustChangePassword ?? true);
-  const resetMutation = api.users.resetPassword.useMutation();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!hidePassword) {
-      // Create mode - requires password
-      onSubmit({ name, email, password, role, mustChangePassword: forceReset });
-    } else {
-      // Edit mode - no password change
-      onSubmit({ name, email, role, mustChangePassword: forceReset });
-    }
+    onSubmit({ name, email, role });
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50  flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <Card variant="elevated" className="w-full max-w-md">
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
-            {title}
-          </h3>
+          <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">{title}</h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -281,23 +294,6 @@ function UserModal({ title, initialData, onSubmit, onCancel, isLoading, hidePass
               />
             </div>
 
-            {!hidePassword && (
-              <div>
-                <Label htmlFor="password" required>
-                  Password
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  variant="elevated"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter secure password"
-                  required
-                />
-              </div>
-            )}
-
             <div>
               <Label htmlFor="role" required>
                 User Role
@@ -315,85 +311,11 @@ function UserModal({ title, initialData, onSubmit, onCancel, isLoading, hidePass
               </select>
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <input
-                id="must-change"
-                type="checkbox"
-                className="h-4 w-4 rounded border-[var(--color-border)] bg-[var(--color-surface)]"
-                checked={forceReset}
-                onChange={(e) => setForceReset(e.target.checked)}
-              />
-              <Label htmlFor="must-change">Force password change on next login</Label>
-            </div>
-
-            {hidePassword && initialData && (
-              <div className="space-y-2">
-                {!resetMode ? (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setResetMode(true)}>
-                    Reset Password
-                  </Button>
-                ) : (
-                  <div className="space-y-2">
-                    <div>
-                      <Label htmlFor="reset-password" required>
-                        New Password
-                      </Label>
-                      <Input
-                        id="reset-password"
-                        type="password"
-                        variant="elevated"
-                        value={newPwd}
-                        onChange={(e) => setNewPwd(e.target.value)}
-                        placeholder="Enter new password"
-                        required
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        disabled={resetMutation.isPending || newPwd.trim().length < 6}
-                        onClick={() => {
-                          if (!initialData) return;
-                          const pwd = newPwd.trim();
-                          if (pwd.length < 6) return;
-                          resetMutation.mutate({ id: initialData.id, newPassword: pwd });
-                          setResetMode(false);
-                          setNewPwd("");
-                        }}
-                      >
-                        Save New Password
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => { setResetMode(false); setNewPwd(""); }}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {initialData.twoFactorEnabled && onDisable2fa && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={onDisable2fa}
-                  >
-                    Remove 2FA
-                  </Button>
-                )}
-              </div>
-            )}
-
             <div className="flex gap-3 pt-4">
               <Button
                 type="submit"
                 variant="secondary"
-                disabled={
-                  isLoading ||
-                  !name.trim() ||
-                  !email.trim() ||
-                  (!hidePassword && !password.trim())
-                }
+                disabled={isLoading || !name.trim() || !email.trim()}
                 className="flex-1"
               >
                 {isLoading ? "Saving..." : initialData ? "Update" : "Create"}

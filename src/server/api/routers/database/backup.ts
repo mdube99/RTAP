@@ -90,7 +90,8 @@ export const databaseBackupRouter = createTRPCRouter({
         }
 
         if (opts.includeUsersAndGroups) {
-          payload.users = await ctx.db.user.findMany({ select: { id: true, email: true, name: true, role: true, password: true } });
+          payload.users = await ctx.db.user.findMany({ select: { id: true, email: true, name: true, role: true, lastLogin: true } });
+          payload.authenticators = await ctx.db.authenticator.findMany();
           payload.groups = await ctx.db.group.findMany({ select: { id: true, name: true, description: true } });
           payload.userGroups = await ctx.db.userGroup.findMany({ select: { userId: true, groupId: true } });
         }

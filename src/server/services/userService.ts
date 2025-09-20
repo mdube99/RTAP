@@ -1,13 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient, UserRole } from "@prisma/client";
-import { hashPassword } from "@/server/auth/password";
-
 export type CreateUserDTO = {
   email: string;
   name: string;
-  password: string;
   role: UserRole;
-  mustChangePassword: boolean;
 };
 
 export type UpdateUserDTO = {
@@ -15,21 +11,16 @@ export type UpdateUserDTO = {
   email?: string;
   name?: string;
   role?: UserRole;
-  mustChangePassword?: boolean;
 };
 
 export async function createUser(db: PrismaClient, dto: CreateUserDTO) {
   const existing = await db.user.findUnique({ where: { email: dto.email } });
   if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "User with this email already exists" });
-
-  const password = await hashPassword(dto.password);
   return db.user.create({
     data: {
       email: dto.email,
       name: dto.name,
-      password,
       role: dto.role,
-      mustChangePassword: dto.mustChangePassword,
     },
     select: defaultUserSelect(),
   });
@@ -56,8 +47,7 @@ export function defaultUserSelect() {
     email: true,
     role: true,
     lastLogin: true,
-    twoFactorEnabled: true,
-    mustChangePassword: true,
+    _count: { select: { authenticators: true } },
   } as const;
 }
 

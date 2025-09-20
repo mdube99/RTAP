@@ -19,14 +19,28 @@ describe("Users Router — update/delete", () => {
   });
 
   it("updates user details", async () => {
-    const updateData = { id: "user-123", name: "Updated Name", email: "updated@test.com", role: UserRole.OPERATOR, mustChangePassword: false } as const;
-    const mockUpdatedUser = { ...updateData, lastLogin: null, twoFactorEnabled: false } as const;
+    const updateData = { id: "user-123", name: "Updated Name", email: "updated@test.com", role: UserRole.OPERATOR } as const;
+    const mockUpdatedUser = {
+      id: updateData.id,
+      name: updateData.name,
+      email: updateData.email,
+      role: updateData.role,
+      lastLogin: null,
+      _count: { authenticators: 1 },
+    };
     mockDb.user.findFirst.mockResolvedValue(null);
     mockDb.user.update.mockResolvedValue(mockUpdatedUser);
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
     const res = await caller.update(updateData);
-    expect(res).toEqual(mockUpdatedUser);
+    expect(res).toEqual({
+      id: updateData.id,
+      name: updateData.name,
+      email: updateData.email,
+      role: updateData.role,
+      lastLogin: null,
+      passkeyCount: 1,
+    });
   });
 
   it("prevents admin from removing their own admin role", async () => {
@@ -66,4 +80,3 @@ describe("Users Router — update/delete", () => {
     );
   });
 });
-

@@ -45,7 +45,7 @@ docker system prune -a --volumes
 
 Notes:
 
-- First login forces a password change.
+- The initialization script prints a one-time login URL for the initial admin. After using it, register a passkey from the account page.
 
 ## Logging
 
@@ -56,13 +56,13 @@ Notes:
 
 SSO is enabled through environment variables. Users must be provisioned ahead of time; they are **not** auto-created on first SSO login.
 
-For a pure-SSO setup, set `INITIAL_ADMIN_EMAIL` to a value from the SSO provider and disable password authentication if desired.
+For a pure-SSO setup, set `INITIAL_ADMIN_EMAIL` to a value from the SSO provider. Passkeys can be enabled alongside SSO when desired.
 
 Environment variables:
 
 ```
-# Toggle credentials provider (default: enabled)
-AUTH_CREDENTIALS_ENABLED=true
+# Toggle passkey provider (default: disabled)
+AUTH_PASSKEYS_ENABLED=true
 
 # Register Google provider when present (optional)
 GOOGLE_CLIENT_ID=

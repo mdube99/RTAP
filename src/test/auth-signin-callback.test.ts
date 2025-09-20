@@ -2,52 +2,39 @@ import { describe, it, expect, vi } from "vitest";
 import type { AdapterUser } from "next-auth/adapters";
 
 // Mock server-only barrier and db import so config can be imported in Vitest
-vi.mock('server-only', () => ({}));
-vi.mock("@/server/db", () => ({ db: {} }));
+vi.mock("server-only", () => ({}));
+vi.mock("@/server/db", () => ({ db: { user: { findUnique: vi.fn() } } }));
+
+const mockDb = (await import("@/server/db")).db as any;
 
 describe("NextAuth signIn callback", () => {
-  it("returns true; redirect handled by middleware/client when mustChangePassword is true", async () => {
+  it("allows calls without account context", async () => {
     const { authConfig } = await import("@/server/auth/config");
-    const user: AdapterUser & { role: string; mustChangePassword: boolean } = {
-      id: "u1",
-      email: "admin@example.com",
-      emailVerified: null,
-      name: "Admin",
-      image: null,
-      role: "ADMIN",
-      mustChangePassword: true,
-    };
     const signInCb = authConfig.callbacks?.signIn;
-    if (!signInCb) throw new Error('signIn callback missing');
-    const res = await signInCb({
-      user,
-      account: null,
-      profile: undefined,
-      email: undefined,
-      credentials: undefined,
-    });
-    expect(res).toBe(true);
+    if (!signInCb) throw new Error("signIn callback missing");
+    const result = await signInCb({ account: null, user: {} as AdapterUser });
+    expect(result).toBe(true);
   });
 
-  it("allows sign-in when mustChangePassword is false", async () => {
+  it("denies passkey sign-in when passkeys are disabled", async () => {
     const { authConfig } = await import("@/server/auth/config");
-    const user: AdapterUser & { role: string; mustChangePassword: boolean } = {
-      id: "u1",
-      email: "admin@example.com",
-      emailVerified: null,
-      name: "Admin",
-      image: null,
-      role: "ADMIN",
-      mustChangePassword: false,
-    };
     const signInCb = authConfig.callbacks?.signIn;
-    if (!signInCb) throw new Error('signIn callback missing');
+    if (!signInCb) throw new Error("signIn callback missing");
     const res = await signInCb({
-      user,
-      account: null,
-      profile: undefined,
-      email: undefined,
-      credentials: undefined,
+      account: { provider: "passkey" } as any,
+      user: { id: "u1", email: "user@test.com" } as AdapterUser,
+    });
+    expect(res).toBe(false);
+  });
+
+  it("allows login link when user exists", async () => {
+    mockDb.user.findUnique.mockResolvedValue({ id: "u1", email: "user@test.com", role: "ADMIN" });
+    const { authConfig } = await import("@/server/auth/config");
+    const signInCb = authConfig.callbacks?.signIn;
+    if (!signInCb) throw new Error("signIn callback missing");
+    const res = await signInCb({
+      account: { provider: "login-link" } as any,
+      user: { email: "user@test.com" } as AdapterUser,
     });
     expect(res).toBe(true);
   });

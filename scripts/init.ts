@@ -5,32 +5,16 @@
  * - Logs at info level regardless of LOG_LEVEL to aid operations
  */
 import 'dotenv/config';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 async function main() {
-  // Normalize env and support *_FILE for the admin password
-  const pwdFile = process.env.INITIAL_ADMIN_PASSWORD_FILE;
-  if (!process.env.INITIAL_ADMIN_PASSWORD && pwdFile) {
-    try {
-      process.env.INITIAL_ADMIN_PASSWORD = readFileSync(pwdFile, 'utf-8').trim();
-    } catch (e) {
-      console.error('[init] Failed reading INITIAL_ADMIN_PASSWORD_FILE:', e);
-      process.exit(1);
-    }
-  }
-
   // Basic validation
   const required = ['AUTH_SECRET', 'DATABASE_URL'];
   const missing = required.filter((k) => !process.env[k] || String(process.env[k]).trim() === '');
   if (missing.length) {
     console.error('[init] Missing required env:', missing.join(', '));
-    process.exit(1);
-  }
-
-  if (!process.env.INITIAL_ADMIN_PASSWORD || String(process.env.INITIAL_ADMIN_PASSWORD).trim() === '') {
-    console.error('[init] Missing INITIAL_ADMIN_PASSWORD (or *_FILE) for first-run initialization.');
     process.exit(1);
   }
 
@@ -71,8 +55,17 @@ async function main() {
     console.info('[init] Ensuring initial data (admin + MITRE) ...');
     const { PrismaClient } = await import('@prisma/client');
     const { ensureInitialized } = await import('@server/init/ensure-initialized');
+    const { createLoginLink } = await import('@server/auth/login-link');
     const db = new PrismaClient({ log: ['error'] });
     await ensureInitialized(db);
+    const initialEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase() ?? 'admin@example.com';
+    const { url, expires } = await createLoginLink(db, {
+      email: initialEmail,
+      baseUrl: process.env.AUTH_URL,
+    });
+    console.info('[init] Initial admin login link (one-time use):');
+    console.info(`  ${url}`);
+    console.info(`[init] Link expires at ${expires.toISOString()}`);
     await db.$disconnect();
     console.info('[init] Initialization complete.');
   } catch (e) {
