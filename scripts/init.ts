@@ -55,17 +55,8 @@ async function main() {
     console.info('[init] Ensuring initial data (admin + MITRE) ...');
     const { PrismaClient } = await import('@prisma/client');
     const { ensureInitialized } = await import('@server/init/ensure-initialized');
-    const { createLoginLink } = await import('@server/auth/login-link');
     const db = new PrismaClient({ log: ['error'] });
     await ensureInitialized(db);
-    const initialEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase() ?? 'admin@example.com';
-    const { url, expires } = await createLoginLink(db, {
-      email: initialEmail,
-      baseUrl: process.env.AUTH_URL,
-    });
-    console.info('[init] Initial admin login link (one-time use):');
-    console.info(`  ${url}`);
-    console.info(`[init] Link expires at ${expires.toISOString()}`);
     await db.$disconnect();
     console.info('[init] Initialization complete.');
   } catch (e) {

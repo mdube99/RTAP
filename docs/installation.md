@@ -16,6 +16,9 @@ npm install
 # Initialize schema and seed first-run admin + MITRE
 npm run init
 
+# When ready, generate the one-time login link for the initial admin user
+npm run generate-admin-login
+
 # Optionally - seed demo taxonomy/operation data
 npx tsx scripts/demo-data.ts
 
@@ -45,7 +48,7 @@ docker system prune -a --volumes
 
 Notes:
 
-- The initialization script prints a one-time login URL for the initial admin. After using it, register a passkey from the account page.
+- Run `npm run generate-admin-login` whenever you need a new one-time login URL for the initial admin. After using it, register a passkey from the account page.
 
 ## Logging
 
