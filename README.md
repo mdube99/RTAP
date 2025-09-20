@@ -34,6 +34,8 @@ Initially based on the T3 Stack - Next.js, tRPC, Prisma, TypeScript. Type-safe A
 
 Local development uses sqlite and the node server. "Production" installation uses docker-compose, postgres, and BYO-reverse-proxy.
 
+Authentication is all passwordless using NextAuth - with an option for passkeys and/or OAuth providers (initial support includes Google SSO).
+
 ## Licensing
 
 The MITRE ATT&CK data included in this project is pulled directly from [their CTI project](https://github.com/mitre/cti), which requests the following statement be included:
