@@ -1,0 +1,387 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
+  // Further reading:
+  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
+  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+  url      = env("DATABASE_URL")
+}
+
+// Necessary for Next auth
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? // @db.Text
+  access_token             String? // @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? // @db.Text
+  session_state            String?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refresh_token_expires_in Int?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+model User {
+  id                 String      @id @default(cuid())
+  name               String?
+  email              String      @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String? // For credentials auth
+  mustChangePassword Boolean     @default(false)
+  lastLogin          DateTime?
+  twoFactorEnabled   Boolean     @default(false)
+  totpSecret         String?
+  role               UserRole    @default(VIEWER)
+  accounts           Account[]
+  sessions           Session[]
+  operations         Operation[]
+  groups             UserGroup[] // User's group memberships
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// MITRE ATT&CK Framework Models
+model MitreTactic {
+  id          String           @id // e.g., "TA0001"
+  name        String // e.g., "Initial Access"
+  description String
+  url         String? // Reference URL
+  techniques  MitreTechnique[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([name])
+}
+
+model MitreTechnique {
+  id            String              @id // e.g., "T1566"
+  name          String // e.g., "Phishing"
+  description   String
+  url           String? // Reference URL
+  tactic        MitreTactic         @relation(fields: [tacticId], references: [id])
+  tacticId      String
+  subTechniques MitreSubTechnique[]
+  techniques    Technique[] // Operations that use this technique
+  threatActors  ThreatActor[] // Threat actors that use this technique
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([tacticId])
+  @@index([name])
+}
+
+model MitreSubTechnique {
+  id          String         @id // e.g., "T1566.001"
+  name        String // e.g., "Spearphishing Attachment"
+  description String
+  url         String? // Reference URL
+  technique   MitreTechnique @relation(fields: [techniqueId], references: [id])
+  techniqueId String
+  techniques  Technique[] // Operations that use this sub-technique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([techniqueId])
+  @@index([name])
+}
+
+// Taxonomy Models
+model ThreatActor {
+  id              String           @id @default(cuid())
+  name            String           @unique // e.g., "APT29", "Lazarus Group"
+  description     String
+  topThreat       Boolean          @default(false) // Flag for priority threats
+  operations      Operation[]
+  mitreTechniques MitreTechnique[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([name])
+  @@index([topThreat])
+}
+
+model CrownJewel {
+  id          String      @id @default(cuid())
+  name        String      @unique // e.g., "Customer Database", "Source Code Repository"
+  description String
+  operations  Operation[] @relation("OperationCrownJewels")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([name])
+}
+
+model Tag {
+  id          String      @id @default(cuid())
+  name        String      @unique // e.g., "Purple Team", "Stealth", "Opportunistic"
+  description String
+  color       String      @default("#00ff41") // Hex color code
+  operations  Operation[] @relation("OperationTags")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([name])
+}
+
+// Group model for access control
+model Group {
+  id          String @id @default(cuid())
+  name        String @unique // e.g., "Red Team", "Blue Team"
+  description String
+  // Group members
+  members UserGroup[]
+
+  // Operations access list (many-to-many via OperationAccessGroup)
+  operationAccess OperationAccessGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+// Join table for many-to-many relationship between Users and Groups
+model UserGroup {
+  id      String @id @default(cuid())
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, groupId]) // Prevent duplicate memberships
+  @@index([userId])
+  @@index([groupId])
+}
+
+enum ToolType {
+  DEFENSIVE
+  OFFENSIVE
+}
+
+model ToolCategory {
+  id        String   @id @default(cuid())
+  name      String // e.g., "EDR", "C2", "SIEM"
+  type      ToolType // DEFENSIVE or OFFENSIVE
+  tools     Tool[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, type]) // Category names unique per type
+  @@index([type])
+}
+
+model Tool {
+  id         String       @id @default(cuid())
+  name       String       @unique // e.g., "CrowdStrike Falcon", "Cobalt Strike"
+  categoryId String
+  category   ToolCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  type       ToolType // DEFENSIVE or OFFENSIVE (denormalized for queries)
+  techniques Technique[]  @relation("TechniqueTools")
+  outcomes   Outcome[]    @relation("OutcomeTools")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([type, categoryId])
+  @@index([name])
+}
+
+model LogSource {
+  id          String    @id @default(cuid())
+  name        String    @unique // e.g., "Splunk Enterprise", "Windows Event Log"
+  description String
+  outcomes    Outcome[] @relation("OutcomeLogSources")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([name])
+}
+
+// Operation Management Models
+enum OperationStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Operation {
+  id          Int             @id @default(autoincrement())
+  name        String
+  description String
+  status      OperationStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+
+  // Relationships
+  createdBy     User         @relation(fields: [createdById], references: [id])
+  createdById   String
+  threatActor   ThreatActor? @relation(fields: [threatActorId], references: [id])
+  threatActorId String?
+
+  // Many-to-many relationships
+  tags        Tag[]        @relation("OperationTags")
+  crownJewels CrownJewel[] @relation("OperationCrownJewels")
+  techniques  Technique[]
+
+  // Access control
+  visibility   OperationVisibility @default(EVERYONE)
+  accessGroups OperationAccessGroup[]
+
+  // Attack flow layout
+  attackFlowLayout AttackFlowLayout?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdById])
+  @@index([threatActorId])
+  @@index([name])
+}
+
+// Per-operation visibility
+enum OperationVisibility {
+  EVERYONE
+  GROUPS_ONLY
+}
+
+// Join table between operations and groups for access control
+model OperationAccessGroup {
+  id          String    @id @default(cuid())
+  operation   Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  operationId Int
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId     String
+
+  createdAt DateTime @default(now())
+
+  @@unique([operationId, groupId])
+  @@index([operationId])
+  @@index([groupId])
+}
+
+model Technique {
+  id          String @id @default(cuid())
+  description String // Custom description for this execution
+  sortOrder   Int    @default(0) // Order within operation for drag-and-drop
+
+  // Execution details
+  startTime             DateTime?
+  endTime               DateTime?
+  sourceIp              String?
+  targetSystem          String?
+  crownJewelTargeted    Boolean   @default(false)
+  crownJewelCompromised Boolean   @default(false)
+  executedSuccessfully  Boolean?
+
+  // Relationships
+  operation           Operation          @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  operationId         Int
+  mitreTechnique      MitreTechnique?    @relation(fields: [mitreTechniqueId], references: [id])
+  mitreTechniqueId    String?
+  mitreSubTechnique   MitreSubTechnique? @relation(fields: [mitreSubTechniqueId], references: [id])
+  mitreSubTechniqueId String?
+
+  // Many-to-many relationships
+  tools    Tool[]    @relation("TechniqueTools")
+  outcomes Outcome[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([operationId])
+  @@index([mitreTechniqueId])
+  @@index([mitreSubTechniqueId])
+}
+
+enum OutcomeType {
+  DETECTION
+  PREVENTION
+  ATTRIBUTION
+}
+
+enum OutcomeStatus {
+  NOT_APPLICABLE
+  MISSED
+  DETECTED
+  PREVENTED
+  ATTRIBUTED
+}
+
+model Outcome {
+  id            String        @id @default(cuid())
+  type          OutcomeType // Detection, Prevention, or Attribution
+  status        OutcomeStatus // N/A, Missed, Detected, etc.
+  detectionTime DateTime? // When the activity was detected
+  notes         String? // Additional notes
+
+  // Evidence
+  screenshotUrl String? // File path/URL to screenshot
+  logData       String? // Log entries or other evidence
+
+  // Relationships
+  technique   Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  techniqueId String
+
+  // Many-to-many relationships
+  tools      Tool[]      @relation("OutcomeTools")
+  logSources LogSource[] @relation("OutcomeLogSources")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([techniqueId])
+  @@index([type, status])
+}
+
+// Attack Flow Layout Model
+model AttackFlowLayout {
+  id          String    @id @default(cuid())
+  operation   Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  operationId Int       @unique
+
+  // Store node positions and edges as JSON
+  nodes Json // Array of {id: string, position: {x: number, y: number}}
+  edges Json // Array of {id: string, source: string, target: string, sourceHandle?: string, targetHandle?: string}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([operationId])
+}

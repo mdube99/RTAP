@@ -1,0 +1,39 @@
+services:
+  ttpx-postgres:
+    image: postgres:16-alpine
+    container_name: ttpx-postgres
+    environment:
+      POSTGRES_USER: ${TTPX_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${TTPX_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${TTPX_POSTGRES_DB}
+    volumes:
+      - ttpx-postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  ttpx-web:
+    image: ghcr.io/initstring/ttpx:main
+    container_name: ttpx-web
+    depends_on:
+      - ttpx-postgres
+    environment:
+      NODE_ENV: production
+      PORT: ${TTPX_PORT}
+      DATABASE_URL: ${TTPX_DATABASE_URL}
+      AUTH_URL: ${TTPX_AUTH_URL}
+      AUTH_SECRET: ${TTPX_AUTH_SECRET}
+      INITIAL_ADMIN_EMAIL: ${TTPX_INITIAL_ADMIN_EMAIL}
+      INITIAL_ADMIN_PASSWORD: ${TTPX_INITIAL_ADMIN_PASSWORD}
+      AUTH_CREDENTIALS_ENABLED: ${TTPX_AUTH_CREDENTIALS_ENABLED}
+      GOOGLE_CLIENT_ID: ${TTPX_GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${TTPX_GOOGLE_CLIENT_SECRET}
+      # INITIAL_ADMIN_PASSWORD_FILE: /run/secrets/initial_admin_password
+    ports:
+      - "${TTPX_PORT}:${TTPX_PORT}"
+    restart: unless-stopped
+
+# If you need TLS, place your own reverse proxy (e.g., Traefik, Caddy, Nginx)
+# in front of ttpx-web and forward port 80/443 to ${PORT}.
+
+volumes:
+  ttpx-postgres-data:
+    name: ttpx-postgres-data
