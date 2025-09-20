@@ -9,7 +9,8 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-const mockDb = (await import("@/server/db")).db as any;
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 
 const ctx = (role: UserRole = "VIEWER") => ({
   headers: new Headers(),
@@ -18,6 +19,7 @@ const ctx = (role: UserRole = "VIEWER") => ({
     expires: "2099-01-01",
   },
   db: mockDb,
+  requestId: "operations-access-test",
 });
 
 describe("operations access filters", () => {

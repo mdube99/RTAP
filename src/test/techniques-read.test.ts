@@ -12,7 +12,8 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-const mockDb = (await import("@/server/db")).db as any;
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 const mockTechnique = { id: "technique-1" };
 
 describe("Techniques Router — read", () => {

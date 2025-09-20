@@ -4,9 +4,28 @@ import { useState } from "react";
 import { signIn as registerPasskey } from "next-auth/webauthn";
 import { api } from "@/trpc/react";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@components/ui";
+import { parseUserWithPasskey, type UserWithPasskey } from "@features/shared/users/user-validators";
+
+const renderLastLogin = (lastLogin: UserWithPasskey["lastLogin"]) => {
+  if (!lastLogin) return "Never";
+
+  if (lastLogin instanceof Date) {
+    return lastLogin.toLocaleString();
+  }
+
+  if (typeof lastLogin === "string" || typeof lastLogin === "number") {
+    const parsed = new Date(lastLogin);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleString();
+    }
+  }
+
+  return String(lastLogin);
+};
 
 export default function AccountPage() {
-  const { data: me, refetch, isLoading } = api.users.me.useQuery();
+  const { data: meData, refetch, isLoading } = api.users.me.useQuery();
+  const me = parseUserWithPasskey(meData);
   const [status, setStatus] = useState<"idle" | "registering" | "success" | "error">("idle");
 
   const handleRegisterPasskey = async () => {
@@ -28,15 +47,6 @@ export default function AccountPage() {
     }
   };
 
-  const renderLastLogin = () => {
-    if (!me?.lastLogin) return "Never";
-    try {
-      return new Date(me.lastLogin).toLocaleString();
-    } catch {
-      return String(me.lastLogin);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Account</h1>
@@ -52,7 +62,9 @@ export default function AccountPage() {
               <p className="text-sm text-[var(--color-text-secondary)]">Name: {me.name ?? "Not set"}</p>
               <p className="text-sm text-[var(--color-text-secondary)]">Email: {me.email}</p>
               <p className="text-sm text-[var(--color-text-secondary)]">Role: {me.role}</p>
-              <p className="text-sm text-[var(--color-text-secondary)]">Last login: {renderLastLogin()}</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Last login: {renderLastLogin(me.lastLogin)}
+              </p>
             </>
           )}
         </CardContent>

@@ -25,18 +25,21 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-
-const mockDb = vi.mocked(await import("@/server/db")).db;
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 
 // Add missing method (for prior tests); keep for safety
 mockDb.user.findFirst = vi.fn();
 
 // Helper to create mock context
 const createMockContext = (role: UserRole) => ({
+  headers: new Headers(),
   session: {
     user: { id: "test-user-id", role },
+    expires: "2099-01-01",
   },
   db: mockDb,
+  requestId: "database-test",
 });
 
 // Create tRPC caller with mock context
@@ -139,7 +142,7 @@ describe("Database Router", () => {
       const caller = createCaller(UserRole.ADMIN);
       
       mockDb.$transaction.mockImplementation(async (callback) => {
-        return await callback(mockDb) as unknown;
+        return await callback(mockDb);
       });
       mockDb.outcome.deleteMany.mockResolvedValue({ count: 10 });
       mockDb.technique.deleteMany.mockResolvedValue({ count: 5 });
@@ -157,7 +160,7 @@ describe("Database Router", () => {
       const caller = createCaller(UserRole.ADMIN);
       
       mockDb.$transaction.mockImplementation(async (callback) => {
-        return await callback(mockDb) as unknown;
+        return await callback(mockDb);
       });
       mockDb.userGroup.deleteMany.mockResolvedValue({ count: 5 });
       mockDb.group.deleteMany.mockResolvedValue({ count: 2 });

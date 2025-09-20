@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { analyticsRouter } from "@/server/api/routers/analytics";
-import type { UserRole } from "@prisma/client";
-import { OutcomeStatus, OutcomeType } from "@prisma/client";
+import { OutcomeStatus, OutcomeType, type UserRole } from "@prisma/client";
+import { buildCoverageOutcome, buildTechniqueWithSubTechnique } from "./factories/analytics";
 
 vi.mock("@/server/db", () => ({
   db: {
@@ -10,57 +10,61 @@ vi.mock("@/server/db", () => ({
 }));
 
 const { db } = await import("@/server/db");
-const mockDb = vi.mocked(db);
+const mockDb = vi.mocked(db, true);
 
 const createCtx = (role: UserRole = "ADMIN") => ({
   session: { user: { id: "u1", role }, expires: new Date().toISOString() },
   db: mockDb,
   headers: new Headers(),
+  requestId: "analytics-subtech-test",
 });
 
 describe("Analytics Sub-techniques", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("subTechniqueUsage returns only executed sub-techniques", async () => {
-    mockDb.technique.findMany
-      // First call: DB already filters by startTime != null; return executed only
-      .mockResolvedValueOnce([
-        { mitreSubTechniqueId: "T1000.001", startTime: new Date() },
-      ] as any);
+    const executed: Array<{ mitreSubTechniqueId: string | null; startTime: Date | null }> = [
+      { mitreSubTechniqueId: "T1000.001", startTime: new Date() },
+    ];
+    mockDb.technique.findMany.mockResolvedValueOnce(executed);
 
     const caller = analyticsRouter.createCaller(createCtx());
     const used = await caller.coverage.subTechniqueUsage();
 
-    const ids = used.map(u => u.subTechniqueId);
+    const ids = used.map((u) => u.subTechniqueId);
     expect(ids).toContain("T1000.001");
     expect(ids).not.toContain("T1000.002");
   });
 
   it("subTechniqueMetrics sets availability flags and rates only when attempts exist", async () => {
-    // One executed sub-technique with a DETECTED detection, MISSED prevention, N/A attribution
-    mockDb.technique.findMany
-      .mockResolvedValueOnce([
-        {
-          mitreSubTechniqueId: "T2000.001",
-          startTime: new Date(),
-          mitreSubTechnique: {
-            id: "T2000.001",
-            name: "Sub A",
-            techniqueId: "T2000",
-            technique: { name: "Base", tactic: { id: "TA0001", name: "Initial Access" } },
-          },
-          outcomes: [
-            { type: OutcomeType.DETECTION, status: OutcomeStatus.DETECTED },
-            { type: OutcomeType.PREVENTION, status: OutcomeStatus.MISSED },
-            { type: OutcomeType.ATTRIBUTION, status: OutcomeStatus.NOT_APPLICABLE },
-          ],
+    const techniqueId = "tech-1";
+    const metricsTechnique = buildTechniqueWithSubTechnique({
+      id: techniqueId,
+      mitreSubTechniqueId: "T2000.001",
+      startTime: new Date(),
+      mitreSubTechnique: {
+        id: "T2000.001",
+        name: "Sub A",
+        techniqueId: "T2000",
+        technique: {
+          id: "T2000",
+          name: "Base",
+          tactic: { id: "TA0001", name: "Initial Access" },
         },
-      ] as any);
+      },
+      outcomes: [
+        buildCoverageOutcome(techniqueId, { type: OutcomeType.DETECTION, status: OutcomeStatus.DETECTED }),
+        buildCoverageOutcome(techniqueId, { type: OutcomeType.PREVENTION, status: OutcomeStatus.MISSED }),
+        buildCoverageOutcome(techniqueId, { type: OutcomeType.ATTRIBUTION, status: OutcomeStatus.NOT_APPLICABLE }),
+      ],
+    });
+
+    mockDb.technique.findMany.mockResolvedValueOnce([metricsTechnique]);
 
     const caller = analyticsRouter.createCaller(createCtx());
     const subMetrics = await caller.coverage.subTechniqueMetrics();
     expect(subMetrics).toHaveLength(1);
-    const m = subMetrics[0]! as any;
+    const m = subMetrics[0]!;
     expect(m.subTechniqueId).toBe("T2000.001");
     expect(m.detectionAvailable).toBe(true);
     expect(m.preventionAvailable).toBe(true);

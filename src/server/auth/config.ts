@@ -1,4 +1,5 @@
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
+import type { Adapter } from "next-auth/adapters";
 import type { JWT as NextAuthJWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 import Passkey from "next-auth/providers/passkey";
@@ -54,6 +55,52 @@ const loginLinkProvider: EmailConfig = {
 
 const passkeysEnabled = env.AUTH_PASSKEYS_ENABLED === "true";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const adapterMethods: (keyof Adapter)[] = [
+  "createUser",
+  "getUser",
+  "getUserByEmail",
+  "getUserByAccount",
+  "updateUser",
+  "deleteUser",
+  "linkAccount",
+  "unlinkAccount",
+  "createSession",
+  "getSessionAndUser",
+  "updateSession",
+  "deleteSession",
+  "createVerificationToken",
+  "useVerificationToken",
+];
+
+const isAdapterFactory = (value: unknown): value is (client: typeof db) => Adapter =>
+  typeof value === "function";
+
+const isAdapter = (value: unknown): value is Adapter => {
+  if (!isRecord(value)) return false;
+  return adapterMethods.every((method) => {
+    const prop = value[method as keyof typeof value];
+    return prop === undefined || typeof prop === "function";
+  });
+};
+
+const prismaAdapter = (() => {
+  if (!isAdapterFactory(PrismaAdapter)) {
+    throw new Error("Invalid Prisma adapter export");
+  }
+  const candidate = PrismaAdapter(db);
+  if (!isAdapter(candidate)) {
+    throw new Error("Prisma adapter returned an unexpected shape");
+  }
+  return candidate;
+})();
+
+const isErrorLike = (
+  value: unknown,
+): value is { name?: unknown; message?: unknown; stack?: unknown } => isRecord(value);
+
 async function resolveUserIdentity(user: {
   id?: string | null;
   email?: string | null;
@@ -98,17 +145,33 @@ async function resolveUserIdentity(user: {
  * @see https://next-auth.js.org/configuration/options
  */
 export const authConfig = {
-  adapter: PrismaAdapter(db),
+  adapter: prismaAdapter,
   useSecureCookies: env.AUTH_URL?.startsWith("https://") ?? false,
   experimental: passkeysEnabled ? { enableWebAuthn: true } : undefined,
   // Route Auth.js logs through our Pino logger for concise, structured output
   logger: {
     error(error) {
-      const payload: Record<string, unknown> = { event: "authjs.error", name: (error as { name?: string }).name };
-      if (error?.message) payload.message = error.message;
-      if (process.env.NODE_ENV === "development" && (error as { stack?: string }).stack) {
-        payload.stack = (error as { stack?: string }).stack;
+      const payload: Record<string, unknown> = { event: "authjs.error" };
+      const errorDetails = isErrorLike(error) ? error : null;
+
+      if (errorDetails && typeof errorDetails.name === "string") {
+        payload.name = errorDetails.name;
       }
+
+      if (typeof error === "string") {
+        payload.message = error;
+      } else if (errorDetails && typeof errorDetails.message === "string") {
+        payload.message = errorDetails.message;
+      }
+
+      if (
+        process.env.NODE_ENV === "development" &&
+        errorDetails &&
+        typeof errorDetails.stack === "string"
+      ) {
+        payload.stack = errorDetails.stack;
+      }
+
       logger.error(payload, "Auth.js error");
     },
     warn(code) {
@@ -117,7 +180,7 @@ export const authConfig = {
     debug(message, metadata) {
       if (process.env.NODE_ENV === "development") {
         const payload: Record<string, unknown> = { event: "authjs.debug", message };
-        if (metadata && typeof metadata === "object") Object.assign(payload, metadata as Record<string, unknown>);
+        if (isRecord(metadata)) Object.assign(payload, metadata);
         logger.debug(payload, "Auth.js debug");
       }
     },

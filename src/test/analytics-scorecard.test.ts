@@ -11,12 +11,13 @@ vi.mock("@/server/db", () => ({
 }));
 
 const { db } = await import("@/server/db");
-const mockDb = vi.mocked(db);
+const mockDb = vi.mocked(db, true);
 
 const createCtx = () => ({
   session: { user: { id: "u1", role: UserRole.ADMIN }, expires: new Date().toISOString() },
   db: mockDb,
   headers: new Headers(),
+  requestId: "analytics-scorecard-test",
 });
 
 describe("Scorecard metrics", () => {

@@ -42,7 +42,7 @@ export const usersRouter = createTRPCRouter({
   // Create new user (Admin only)
   create: adminProcedure
     .input(z.object({
-      email: z.string().email(),
+      email: z.string().trim().email(),
       name: z.string().min(1),
       role: z.nativeEnum(UserRole).default(UserRole.VIEWER),
     }))
@@ -65,7 +65,7 @@ export const usersRouter = createTRPCRouter({
   update: adminProcedure
     .input(z.object({
       id: z.string(),
-      email: z.string().email().optional(),
+      email: z.string().trim().email().optional(),
       name: z.string().min(1).optional(),
       role: z.nativeEnum(UserRole).optional(),
     }))

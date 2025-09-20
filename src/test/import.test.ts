@@ -27,13 +27,8 @@ vi.mock("@/server/import/stix", () => ({
   ])),
 }));
 
-const mockDb = (await import("@/server/db")).db as unknown as {
-  operation: { findFirst: any; create: any; findUnique: any };
-  threatActor: { findFirst: any; create: any };
-  mitreTechnique: { findMany: any; findUnique: any };
-  mitreSubTechnique: { findMany: any; findUnique: any };
-  technique: { findFirst: any; create: any };
-};
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 
 const ctxBase = {
   headers: new Headers(),
@@ -42,6 +37,7 @@ const ctxBase = {
     expires: "2030-01-01",
   },
   db: mockDb,
+  requestId: "import-test",
 };
 
 describe("Import Router", () => {

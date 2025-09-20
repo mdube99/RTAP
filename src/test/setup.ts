@@ -43,6 +43,7 @@ export const createMockContext = (userRole: UserRole = "ADMIN", userId = "user-1
     },
     expires: "2030-01-01",
   },
+  requestId: "test-request-id",
   db: {} as any, // Will be replaced by individual test mocks
 });
 

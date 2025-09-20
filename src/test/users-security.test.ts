@@ -18,7 +18,8 @@ vi.mock("@/server/auth/login-link", () => ({
   }),
 }));
 
-const mockDb = (await import("@/server/db")).db as any;
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 const { createLoginLink } = await import("@/server/auth/login-link");
 const mockCreateLoginLink = vi.mocked(createLoginLink);
 

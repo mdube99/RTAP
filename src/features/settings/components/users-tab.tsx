@@ -1,22 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
 import { api } from "@/trpc/react";
 import { Button, Card, CardContent, Input, Label } from "@components/ui";
 import ConfirmModal from "@components/ui/confirm-modal";
 import SettingsHeader from "./settings-header";
 import InlineActions from "@components/ui/inline-actions";
 import { UserRole } from "@prisma/client";
+import { isUserRole, userWithPasskeySchema, type UserWithPasskey } from "@features/shared/users/user-validators";
 
-// Define a simple user type for the UI
-type SimpleUser = {
-  id: string;
-  name: string | null;
-  email: string;
-  role: UserRole;
-  lastLogin: Date | null;
-  passkeyCount: number;
-};
+const EMPTY_USERS: UserWithPasskey[] = [];
+const loginLinkSchema = z.object({
+  url: z.string(),
+  expires: z.union([z.date(), z.string(), z.number()]),
+});
+const createUserResponseSchema = z.object({ user: userWithPasskeySchema, loginLink: loginLinkSchema });
 
 interface PendingLink {
   email: string;
@@ -24,26 +23,45 @@ interface PendingLink {
   expires: string;
 }
 
+const toIsoString = (value: Date | string | number) => {
+  if (typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
+  }
+
+  return value instanceof Date ? value.toISOString() : value;
+};
+
 export default function UsersTab() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<SimpleUser | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<SimpleUser | null>(null);
+  const [editingUser, setEditingUser] = useState<UserWithPasskey | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<UserWithPasskey | null>(null);
   const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   // Queries
-  const { data: users, isLoading } = api.users.list.useQuery();
+  const usersQuery = api.users.list.useQuery();
+  const parsedUsers = userWithPasskeySchema.array().safeParse(usersQuery.data);
+  let users: UserWithPasskey[] = EMPTY_USERS;
+  if (parsedUsers.success) {
+    users = parsedUsers.data;
+  }
+  const isLoading = usersQuery.isLoading;
 
   // Mutations
   const utils = api.useUtils();
   const createMutation = api.users.create.useMutation({
     onSuccess: (data) => {
+      const parsed = createUserResponseSchema.safeParse(data);
       void utils.users.invalidate();
+      if (!parsed.success) {
+        return;
+      }
       setIsCreateModalOpen(false);
       setPendingLink({
-        email: data.user.email,
-        url: data.loginLink.url,
-        expires: typeof data.loginLink.expires === "string" ? data.loginLink.expires : data.loginLink.expires.toISOString(),
+        email: parsed.data.user.email,
+        url: parsed.data.loginLink.url,
+        expires: toIsoString(parsed.data.loginLink.expires),
       });
     },
   });
@@ -65,12 +83,15 @@ export default function UsersTab() {
   const loginLinkMutation = api.users.issueLoginLink.useMutation({
     onSuccess: (data, variables) => {
       void utils.users.invalidate();
-      const user = users?.find((u) => u.id === variables.id);
-      setPendingLink({
-        email: user?.email ?? "",
-        url: data.url,
-        expires: typeof data.expires === "string" ? data.expires : data.expires.toISOString(),
-      });
+      const parsedLink = loginLinkSchema.safeParse(data);
+      const user = users.find((u) => u.id === variables.id);
+      if (parsedLink.success) {
+        setPendingLink({
+          email: user?.email ?? "",
+          url: parsedLink.data.url,
+          expires: toIsoString(parsedLink.data.expires),
+        });
+      }
     },
   });
 
@@ -90,7 +111,7 @@ export default function UsersTab() {
     deleteMutation.mutate({ id });
   };
 
-  const handleIssueLink = (user: SimpleUser) => {
+  const handleIssueLink = (user: UserWithPasskey) => {
     loginLinkMutation.mutate({ id: user.id });
   };
 
@@ -118,13 +139,21 @@ export default function UsersTab() {
     }
   };
 
-  const renderLastLogin = (date: Date | null) => {
-    if (!date) return "Never";
-    try {
-      return new Date(date).toLocaleString();
-    } catch {
-      return String(date);
+  const renderLastLogin = (lastLogin: UserWithPasskey["lastLogin"]) => {
+    if (!lastLogin) return "Never";
+
+    if (lastLogin instanceof Date) {
+      return lastLogin.toLocaleString();
     }
+
+    if (typeof lastLogin === "string" || typeof lastLogin === "number") {
+      const parsed = new Date(lastLogin);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleString();
+      }
+    }
+
+    return String(lastLogin);
   };
 
   if (isLoading) {
@@ -159,7 +188,7 @@ export default function UsersTab() {
       )}
 
       <div className="grid gap-4">
-        {users?.map((user) => (
+        {users.map((user) => (
           <Card key={user.id}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
@@ -195,7 +224,7 @@ export default function UsersTab() {
           </Card>
         ))}
 
-        {users?.length === 0 && (
+        {users.length === 0 && (
           <div className="text-center py-12 text-[var(--color-text-secondary)]">
             No users found. Add your first user to get started.
           </div>
@@ -242,7 +271,7 @@ type UserModalSubmitData = { name: string; email: string; role: UserRole };
 
 interface UserModalProps {
   title: string;
-  initialData?: SimpleUser;
+  initialData?: UserWithPasskey;
   onSubmit: (data: UserModalSubmitData) => void;
   onCancel: () => void;
   isLoading: boolean;
@@ -301,7 +330,12 @@ function UserModal({ title, initialData, onSubmit, onCancel, isLoading }: UserMo
               <select
                 id="role"
                 value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (isUserRole(value)) {
+                    setRole(value);
+                  }
+                }}
                 className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
                 required
               >
