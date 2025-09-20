@@ -14,9 +14,9 @@ vi.mock("@/server/db", () => ({
     tool: { count: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
     toolCategory: { findMany: vi.fn(), deleteMany: vi.fn() },
     logSource: { count: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
-    mitreTactic: { findMany: vi.fn() },
-    mitreTechnique: { findMany: vi.fn() },
-    mitreSubTechnique: { findMany: vi.fn() },
+    mitreTactic: { findMany: vi.fn(), deleteMany: vi.fn() },
+    mitreTechnique: { findMany: vi.fn(), deleteMany: vi.fn() },
+    mitreSubTechnique: { findMany: vi.fn(), deleteMany: vi.fn() },
     attackFlowLayout: { findMany: vi.fn(), deleteMany: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -136,6 +136,9 @@ describe("Data Router", () => {
       expect(mockDb.tag.deleteMany).toHaveBeenCalled();
       expect(mockDb.crownJewel.deleteMany).toHaveBeenCalled();
       expect(mockDb.threatActor.deleteMany).toHaveBeenCalled();
+      expect(mockDb.mitreSubTechnique.deleteMany).toHaveBeenCalled();
+      expect(mockDb.mitreTechnique.deleteMany).toHaveBeenCalled();
+      expect(mockDb.mitreTactic.deleteMany).toHaveBeenCalled();
     });
 
     it("rejects non-admin access", async () => {

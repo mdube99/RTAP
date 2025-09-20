@@ -413,6 +413,9 @@ export const dataRouter = createTRPCRouter({
             await tx.tag.deleteMany();
             await tx.crownJewel.deleteMany();
             await tx.threatActor.deleteMany();
+            await tx.mitreSubTechnique.deleteMany();
+            await tx.mitreTechnique.deleteMany();
+            await tx.mitreTactic.deleteMany();
           }
         });
 
