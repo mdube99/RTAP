@@ -25,7 +25,6 @@ jobs:
         env:
           # Minimal env so prisma/next tooling and env schema are happy
           AUTH_SECRET: dummy_auth_secret_abcdefghijklmnopqrstuvwxyz_123456
-          ENCRYPTION_KEY: y965hZIGKilU0QsFD9VRoT4OAtgnRQx2F0nzXGQDPuU=
           DATABASE_URL: file:./dev.db
           NODE_ENV: test
           NEXT_TELEMETRY_DISABLED: 1
@@ -34,7 +33,6 @@ jobs:
       - name: Tests with coverage
         env:
           AUTH_SECRET: dummy_auth_secret_abcdefghijklmnopqrstuvwxyz_123456
-          ENCRYPTION_KEY: y965hZIGKilU0QsFD9VRoT4OAtgnRQx2F0nzXGQDPuU=
           DATABASE_URL: file:./dev.db
           NODE_ENV: test
           NEXT_TELEMETRY_DISABLED: 1
@@ -50,7 +48,6 @@ jobs:
       - name: Build
         env:
           AUTH_SECRET: dummy_auth_secret_abcdefghijklmnopqrstuvwxyz_123456
-          ENCRYPTION_KEY: y965hZIGKilU0QsFD9VRoT4OAtgnRQx2F0nzXGQDPuU=
           DATABASE_URL: file:./dev.db
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: 1
