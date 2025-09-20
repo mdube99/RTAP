@@ -15,18 +15,18 @@ TTPx is a platform for internal Red Teams to plan and analyze their operations. 
 ## Docs
 
 User Docs:
-- Installation: `docs/installation.md`
-- Getting Started Workflow: `docs/getting-started.md`
+- [Installation](docs/installation.md)
+- [Getting Started Workflow](docs/getting-started.md)
 
 Development Docs:
-- UI Style Guide: `docs/dev/STYLE.md`
-- Design Overview: `docs/dev/DESIGN.md`
+- [UI Style Guide](docs/dev/STYLE.md)
+- [Design Overview](docs/dev/DESIGN.md)
 
 ## Contributing
 
 Not currently accepting pull requests - still just an experiment.
 
-See `AGENTS.md` for engineering standards.
+See [AGENTS.md](AGENTS.md) for engineering standards.
 
 ## Tech Stack
 
