@@ -10,7 +10,7 @@ import { db } from "@/server/db";
 import { auditEvent, logger } from "@/server/logger";
 import { env } from "@/env";
 import { headers } from "next/headers";
-import { LOGIN_LINK_PROVIDER_ID } from "./login-link";
+import { LOGIN_LINK_PROVIDER_ID } from "./constants";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`

@@ -13,7 +13,7 @@ vi.mock("@/server/db", () => ({
 vi.mock("@/server/auth/login-link", () => ({
   LOGIN_LINK_PROVIDER_ID: "login-link",
   createLoginLink: vi.fn().mockResolvedValue({
-    url: "https://app/auth/callback/login-link?token=abc",
+    url: "https://app/api/auth/callback/login-link?token=abc",
     expires: new Date("2025-01-01T00:00:00Z"),
   }),
 }));

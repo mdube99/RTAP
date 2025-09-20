@@ -4,7 +4,9 @@ import type { PrismaClient } from "@prisma/client";
 import { env } from "@/env";
 import { logger } from "@/server/logger";
 
-export const LOGIN_LINK_PROVIDER_ID = "login-link";
+import { LOGIN_LINK_PROVIDER_ID } from "./constants";
+
+export { LOGIN_LINK_PROVIDER_ID } from "./constants";
 const DEFAULT_TTL_SECONDS = 60 * 60; // 1 hour
 
 function getBaseUrl(provided?: string) {
@@ -57,7 +59,7 @@ export async function createLoginLink(
   const baseUrl = getBaseUrl(params.baseUrl);
   const callbackDestination = params.callbackPath ?? "/";
   const callbackTarget = new URL(callbackDestination, baseUrl);
-  const link = new URL(`/auth/callback/${LOGIN_LINK_PROVIDER_ID}`, baseUrl);
+  const link = new URL(`/api/auth/callback/${LOGIN_LINK_PROVIDER_ID}`, baseUrl);
   link.searchParams.set("callbackUrl", callbackTarget.toString());
   link.searchParams.set("token", token);
   link.searchParams.set("email", email);
