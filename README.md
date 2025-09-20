@@ -33,3 +33,9 @@ See [AGENTS.md](AGENTS.md) for engineering standards.
 Initially based on the T3 Stack - Next.js, tRPC, Prisma, TypeScript. Type-safe APIs, server-side rendering, and component-driven design.
 
 Local development uses sqlite and the node server. "Production" installation uses docker-compose, postgres, and BYO-reverse-proxy.
+
+## Licensing
+
+The MITRE ATT&CK data included in this project is pulled directly from [their CTI project](https://github.com/mitre/cti), which requests the following statement be included:
+
+> "© 2025 The MITRE Corporation. This work is reproduced and distributed with the permission of The MITRE Corporation."
