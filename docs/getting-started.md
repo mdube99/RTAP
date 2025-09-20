@@ -14,9 +14,11 @@ This guide walks through the first workflow after you launch the application. Fo
   - Crown Jewels. Examples: Production DB, Source Code Repo, etc.
   - Tags. Examples: Stealth, Purple Team, etc. These can be applied to operations and used for filtering lists analytics.
 
-<a href="images/taxonomy.png">
-  <img src="images/taxonomy.png" width="360" alt="Screenshot - Taxonomy" />
-</a>
+<p align="center">
+  <a href="images/taxonomy.png">
+    <img src="images/taxonomy.png" width="540" alt="Screenshot - Taxonomy" />
+  </a>
+</p>
 
 ## 2. Add Users and Groups
 
@@ -28,9 +30,11 @@ This guide walks through the first workflow after you launch the application. Fo
 - Create groups under Settings -> Groups if you plan to restrict operations to specific teams.
 - When SSO is enabled, every user still needs to exist in TTPx ahead of time with the correct role and group membership.
 
-<a href="images/users.png">
-  <img src="images/users.png" width="360" alt="Screenshot - Users" />
-</a>
+<p align="center">
+  <a href="images/users.png">
+    <img src="images/users.png" width="540" alt="Screenshot - Users" />
+  </a>
+</p>
 
 ## 3. Create an Operation
 
@@ -42,9 +46,11 @@ This guide walks through the first workflow after you launch the application. Fo
 - Set the start and end dates. These dates drive analytics such as trends and duration metrics, so keep them accurate.
 - Optionally, configure tags, crown jewels, threat actor being emulated, and group access restrictions.
 
-<a href="images/new-operation.png">
-  <img src="images/new-operation.png" width="360" alt="Screenshot - New Operation" />
-</a>
+<p align="center">
+  <a href="images/new-operation.png">
+    <img src="images/new-operation.png" width="540" alt="Screenshot - New Operation" />
+  </a>
+</p>
 
 ## 4. Plan Attack Techniques
 
@@ -59,9 +65,11 @@ This guide walks through the first workflow after you launch the application. Fo
   - What tooling and log sources were involved in successful outcomes or SHOULD HAVE BEEN involved in failed outcomes?
   - Note: You can leave an outcome as "N/A" and it will not be graded as failed in analytics. Do this for things that realistically cannot be detected/prevented/attributed.
 
-<a href="images/technique-editor.png">
-  <img src="images/technique-editor.png" width="360" alt="Screenshot - Technique Editor" />
-</a>
+<p align="center">
+  <a href="images/technique-editor.png">
+    <img src="images/technique-editor.png" width="540" alt="Screenshot - Technique Editor" />
+  </a>
+</p>
 
 ## 5. Review Attack Visualizations Inside the Operation
 
@@ -71,9 +79,11 @@ This view shows an attack matrix specific to the operation. You can maximize the
 
 Success metrics are displayed on each technique card.
 
-<a href="images/operation-matrix.png">
-  <img src="images/operation-matrix.png" width="360" alt="Screenshot - Operation Matrix" />
-</a>
+<p align="center">
+  <a href="images/operation-matrix.png">
+    <img src="images/operation-matrix.png" width="540" alt="Screenshot - Operation Matrix" />
+  </a>
+</p>
 
 ### Attack Flow
 
@@ -81,9 +91,11 @@ This is an interactive flow chart built automatically from the operation's techn
 
 Success metrics are displayed on each technique card.
 
-<a href="images/attack-flow.png">
-  <img src="images/attack-flow.png" width="360" alt="Screenshot - Attack Flow" />
-</a>
+<p align="center">
+  <a href="images/attack-flow.png">
+    <img src="images/attack-flow.png" width="540" alt="Screenshot - Attack Flow" />
+  </a>
+</p>
 
 ## 6. Explore Analytics
 
@@ -91,18 +103,28 @@ Success metrics are displayed on each technique card.
 - Analytics -> Attack Matrix to compare executed coverage across all accessible operations. Toggle to view against the complete ATT&CK matrix. Metrics are displayed on each individual technique card.
 - Analytics -> Trends to track performance over time. Filters at the top limit results by date range and tags.
 
-<a href="images/scorecard-1.png">
-  <img src="images/scorecard-1.png" width="360" alt="Screenshot - Score Card 1" />
-</a>
-<a href="images/scorecard-2.png">
-  <img src="images/scorecard-2.png" width="360" alt="Screenshot - Score Card 2" />
-</a>
-<a href="images/scorecard-3.png">
-  <img src="images/scorecard-3.png" width="360" alt="Screenshot - Score Card 3" />
-</a>
-<a href="images/trends-1.png">
-  <img src="images/trends-1.png" width="360" alt="Screenshot - Trends 1" />
-</a>
-<a href="images/trends-2.png">
-  <img src="images/trends-2.png" width="360" alt="Screenshot - Trends 2" />
-</a>
+<p align="center">
+  <a href="images/scorecard-1.png">
+    <img src="images/scorecard-1.png" width="540" alt="Screenshot - Score Card 1" />
+  </a>
+</p>
+<p align="center">
+  <a href="images/scorecard-2.png">
+    <img src="images/scorecard-2.png" width="540" alt="Screenshot - Score Card 2" />
+  </a>
+</p>
+<p align="center">
+  <a href="images/scorecard-3.png">
+    <img src="images/scorecard-3.png" width="540" alt="Screenshot - Score Card 3" />
+  </a>
+</p>
+<p align="center">
+  <a href="images/trends-1.png">
+    <img src="images/trends-1.png" width="540" alt="Screenshot - Trends 1" />
+  </a>
+</p>
+<p align="center">
+  <a href="images/trends-2.png">
+    <img src="images/trends-2.png" width="540" alt="Screenshot - Trends 2" />
+  </a>
+</p>
