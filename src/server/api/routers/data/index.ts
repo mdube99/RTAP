@@ -101,9 +101,6 @@ const threatActorTechniqueLinkSchema = z.object({
 });
 
 const backupPayloadSchema = z.object({
-  mitreTactics: z.array(z.unknown()).optional(),
-  mitreTechniques: z.array(z.unknown()).optional(),
-  mitreSubTechniques: z.array(z.unknown()).optional(),
   threatActors: z.array(threatActorSchema).optional(),
   crownJewels: z.array(crownJewelSchema).optional(),
   tags: z.array(tagSchema).optional(),
@@ -164,9 +161,6 @@ export const dataRouter = createTRPCRouter({
 
     try {
       const [
-        mitreTactics,
-        mitreTechniques,
-        mitreSubTechniques,
         crownJewels,
         tags,
         toolCategories,
@@ -177,9 +171,6 @@ export const dataRouter = createTRPCRouter({
         outcomes,
         attackFlowLayouts,
       ] = await Promise.all([
-        db.mitreTactic.findMany(),
-        db.mitreTechnique.findMany(),
-        db.mitreSubTechnique.findMany(),
         db.crownJewel.findMany(),
         db.tag.findMany(),
         db.toolCategory.findMany(),
@@ -222,9 +213,6 @@ export const dataRouter = createTRPCRouter({
           version: "2.0",
           timestamp: new Date().toISOString(),
           data: {
-            mitreTactics,
-            mitreTechniques,
-            mitreSubTechniques,
             threatActors,
             crownJewels,
             tags,
@@ -286,20 +274,6 @@ export const dataRouter = createTRPCRouter({
             await tx.tag.deleteMany();
             await tx.crownJewel.deleteMany();
             await tx.threatActor.deleteMany();
-
-            await tx.mitreSubTechnique.deleteMany();
-            await tx.mitreTechnique.deleteMany();
-            await tx.mitreTactic.deleteMany();
-          }
-
-          if (payload.mitreTactics?.length) {
-            await tx.mitreTactic.createMany({ data: payload.mitreTactics as Prisma.MitreTacticCreateManyInput[] });
-          }
-          if (payload.mitreTechniques?.length) {
-            await tx.mitreTechnique.createMany({ data: payload.mitreTechniques as Prisma.MitreTechniqueCreateManyInput[] });
-          }
-          if (payload.mitreSubTechniques?.length) {
-            await tx.mitreSubTechnique.createMany({ data: payload.mitreSubTechniques as Prisma.MitreSubTechniqueCreateManyInput[] });
           }
 
           if (payload.threatActors?.length) {
@@ -413,9 +387,6 @@ export const dataRouter = createTRPCRouter({
             await tx.tag.deleteMany();
             await tx.crownJewel.deleteMany();
             await tx.threatActor.deleteMany();
-            await tx.mitreSubTechnique.deleteMany();
-            await tx.mitreTechnique.deleteMany();
-            await tx.mitreTactic.deleteMany();
           }
         });
 

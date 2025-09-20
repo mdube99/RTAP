@@ -16,9 +16,6 @@ vi.mock("@/server/db", () => ({
     technique: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
     outcome: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
     attackFlowLayout: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
-    mitreTactic: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
-    mitreTechnique: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
-    mitreSubTechnique: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -47,9 +44,6 @@ describe("Data Restore", () => {
     mockDb.threatActor.update.mockResolvedValue({});
 
     const payload = {
-      mitreTactics: [{ id: "tactic-1", name: "Initial Access", shortName: "TA0001" }],
-      mitreTechniques: [{ id: "tech-1", name: "Phishing", tacticId: "tactic-1" }],
-      mitreSubTechniques: [],
       threatActors: [{ id: "ta1", name: "APT29", description: "desc" }],
       crownJewels: [{ id: "cj1", name: "DB", description: "desc" }],
       tags: [{ id: "tag1", name: "Stealth", description: "d" }],
@@ -80,7 +74,6 @@ describe("Data Restore", () => {
 
     expect(mockDb.operation.deleteMany).toHaveBeenCalled();
     expect(mockDb.tool.deleteMany).toHaveBeenCalled();
-    expect(mockDb.mitreTactic.deleteMany).toHaveBeenCalled();
     expect(mockDb.threatActor.createMany).toHaveBeenCalledWith({ data: payload.threatActors });
     expect(mockDb.operation.create).toHaveBeenCalled();
     expect(mockDb.technique.create).toHaveBeenCalled();
