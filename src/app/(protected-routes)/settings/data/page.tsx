@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { CheckCircle } from "lucide-react";
 
 import ConfirmModal from "@components/ui/confirm-modal";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@components/ui";
@@ -17,6 +19,15 @@ export default function DataSettingsPage() {
   const [pendingClearOptions, setPendingClearOptions] = useState<{ clearOperations: boolean; clearTaxonomy: boolean } | null>(
     null,
   );
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+
+    const timeout = window.setTimeout(() => setToastMessage(null), 4000);
+
+    return () => window.clearTimeout(timeout);
+  }, [toastMessage]);
 
   const utils = api.useUtils();
   const { data: stats, refetch: refetchStats } = api.data.getStats.useQuery();
@@ -41,6 +52,7 @@ export default function DataSettingsPage() {
       void utils.invalidate();
       setRestoreFile(null);
       setShowRestoreConfirm(false);
+      setToastMessage("Operations and taxonomy data have been imported.");
     },
   });
 
@@ -73,6 +85,21 @@ export default function DataSettingsPage() {
 
   return (
     <div className="space-y-6">
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start space-x-3 rounded-[var(--radius-lg)] border border-[var(--color-border-light)] bg-[var(--color-surface-elevated)] px-4 py-3 shadow-[var(--shadow-lg)]"
+          >
+            <CheckCircle className="h-5 w-5 text-[var(--status-success-fg)]" aria-hidden />
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Import complete</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">{toastMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div>
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Data Management</h1>
         <p className="text-sm text-[var(--color-text-secondary)] mt-1">
@@ -199,6 +226,7 @@ export default function DataSettingsPage() {
                 checked={clearOperations}
                 onChange={(event) => setClearOperations(event.target.checked)}
                 className="rounded border-[var(--color-border)]"
+                disabled={clearTaxonomy}
               />
               <label htmlFor="clear-operations" className="text-sm text-[var(--color-text-primary)]">
                 Clear operations data
@@ -209,18 +237,34 @@ export default function DataSettingsPage() {
                 type="checkbox"
                 id="clear-taxonomy"
                 checked={clearTaxonomy}
-                onChange={(event) => setClearTaxonomy(event.target.checked)}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setClearTaxonomy(checked);
+                  if (checked) {
+                    setClearOperations(true);
+                  }
+                }}
                 className="rounded border-[var(--color-border)]"
               />
               <label htmlFor="clear-taxonomy" className="text-sm text-[var(--color-text-primary)]">
                 Clear taxonomy data
               </label>
             </div>
+            {clearTaxonomy ? (
+              <p className="text-xs text-[var(--color-text-secondary)] ml-8">
+                Taxonomy depends on operations. Clearing taxonomy will also remove all operations.
+              </p>
+            ) : (
+              <p className="text-xs text-[var(--color-text-secondary)] ml-8">
+                Operations can be cleared independently. Selecting taxonomy will include operations automatically.
+              </p>
+            )}
             <Button
               variant="danger"
               size="sm"
               onClick={() => {
-                setPendingClearOptions({ clearOperations, clearTaxonomy });
+                const operationsToClear = clearOperations || clearTaxonomy;
+                setPendingClearOptions({ clearOperations: operationsToClear, clearTaxonomy });
                 setShowClearConfirm(true);
               }}
               disabled={!clearOperations && !clearTaxonomy}

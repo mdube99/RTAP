@@ -384,7 +384,9 @@ export const dataRouter = createTRPCRouter({
 
       try {
         await db.$transaction(async (tx: Prisma.TransactionClient) => {
-          if (input.clearOperations) {
+          const shouldClearOperations = input.clearOperations || input.clearTaxonomy;
+
+          if (shouldClearOperations) {
             await tx.outcome.deleteMany();
             await tx.technique.deleteMany();
             await tx.attackFlowLayout.deleteMany();

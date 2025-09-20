@@ -126,13 +126,16 @@ describe("Data Router", () => {
 
       await caller.clearData({ clearOperations: false, clearTaxonomy: true });
 
+      expect(mockDb.outcome.deleteMany).toHaveBeenCalled();
+      expect(mockDb.technique.deleteMany).toHaveBeenCalled();
+      expect(mockDb.attackFlowLayout.deleteMany).toHaveBeenCalled();
+      expect(mockDb.operation.deleteMany).toHaveBeenCalled();
       expect(mockDb.tool.deleteMany).toHaveBeenCalled();
       expect(mockDb.toolCategory.deleteMany).toHaveBeenCalled();
       expect(mockDb.logSource.deleteMany).toHaveBeenCalled();
       expect(mockDb.tag.deleteMany).toHaveBeenCalled();
       expect(mockDb.crownJewel.deleteMany).toHaveBeenCalled();
       expect(mockDb.threatActor.deleteMany).toHaveBeenCalled();
-      expect(mockDb.operation.deleteMany).not.toHaveBeenCalled();
     });
 
     it("rejects non-admin access", async () => {
