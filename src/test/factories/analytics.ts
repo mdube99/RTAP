@@ -1,26 +1,26 @@
 import { OutcomeStatus, OutcomeType, OperationStatus } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import type { MitreTactic, Prisma } from "@prisma/client";
 
 export type CoverageTechnique = Prisma.TechniqueGetPayload<{
   include: {
     mitreTechnique: { include: { tactic: true } };
     operation: { select: { id: true; name: true; status: true } };
-    outcomes: true;
+    outcomes: { include: { tools: true; logSources: true } };
   };
 }>;
 
 export type TechniqueWithSubTechnique = Prisma.TechniqueGetPayload<{
   include: {
     mitreSubTechnique: { include: { technique: { include: { tactic: true } } } };
-    outcomes: true;
+    outcomes: { include: { tools: true; logSources: true } };
   };
 }>;
 
 const defaultTimestamp = () => new Date("2024-01-01T00:00:00.000Z");
 
-export function buildMitreTactic(overrides: Partial<Prisma.MitreTactic> = {}): Prisma.MitreTactic {
+export function buildMitreTactic(overrides: Partial<MitreTactic> = {}): MitreTactic {
   const now = defaultTimestamp();
-  const base: Prisma.MitreTactic = {
+  const base: MitreTactic = {
     id: "TA0001",
     name: "Initial Access",
     description: "Default tactic description",
