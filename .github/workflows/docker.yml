@@ -1,9 +1,6 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches: [ main ]
-    tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ main ]
   release:
@@ -11,7 +8,6 @@ on:
     # emit a push event, so include this trigger to build the image when a
     # release goes live.
     types: [ published ]
-  workflow_dispatch: {}
 
 jobs:
   docker-build-pr:
@@ -32,7 +28,7 @@ jobs:
           push: false
 
   docker:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,9 +53,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
-            type=sha
 
       - name: Build and push
         uses: docker/build-push-action@v6
