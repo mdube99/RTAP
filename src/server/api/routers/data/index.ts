@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, adminProcedure } from "@/server/api/trpc";
@@ -373,6 +373,19 @@ export const dataRouter = createTRPCRouter({
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error({ event: "data.restore_failed", message }, "Restore error");
+
+        if (
+          !input.clearBefore &&
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === "P2002" || error.code === "P2003")
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              'Import failed because existing operations or taxonomy conflict with the backup. Select "Clear existing data before import" and try again.',
+          });
+        }
+
         throw new TRPCError({ code: "BAD_REQUEST", message: "Failed to restore backup" });
       }
     }),

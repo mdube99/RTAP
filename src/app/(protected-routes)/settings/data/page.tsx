@@ -20,6 +20,7 @@ export default function DataSettingsPage() {
     null,
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -53,6 +54,11 @@ export default function DataSettingsPage() {
       setRestoreFile(null);
       setShowRestoreConfirm(false);
       setToastMessage("Operations and taxonomy data have been imported.");
+      setRestoreError(null);
+    },
+    onError: (error) => {
+      setShowRestoreConfirm(false);
+      setRestoreError(error.message);
     },
   });
 
@@ -72,6 +78,7 @@ export default function DataSettingsPage() {
 
     try {
       const text = await restoreFile.text();
+      setRestoreError(null);
       restoreMutation.mutate({ backupData: text, clearBefore: clearBeforeImport });
     } catch (error) {
       logger.error("Failed to read backup file", error);
@@ -180,7 +187,10 @@ export default function DataSettingsPage() {
             <input
               type="file"
               accept=".json"
-              onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                setRestoreFile(event.target.files?.[0] ?? null);
+                setRestoreError(null);
+              }}
               className="w-full text-[var(--color-text-primary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] p-2"
             />
             <div className="flex items-center space-x-3">
@@ -188,7 +198,10 @@ export default function DataSettingsPage() {
                 type="checkbox"
                 id="clear-before-import"
                 checked={clearBeforeImport}
-                onChange={(event) => setClearBeforeImport(event.target.checked)}
+                onChange={(event) => {
+                  setClearBeforeImport(event.target.checked);
+                  setRestoreError(null);
+                }}
                 className="rounded border-[var(--color-border)]"
               />
               <label htmlFor="clear-before-import" className="text-sm text-[var(--color-text-primary)]">
@@ -203,9 +216,7 @@ export default function DataSettingsPage() {
             >
               {restoreMutation.isPending ? "Importing..." : "Import Data"}
             </Button>
-            {restoreMutation.error && (
-              <div className="text-sm text-[var(--color-error)]">{restoreMutation.error.message}</div>
-            )}
+            {restoreError && <div className="text-sm text-[var(--color-error)]">{restoreError}</div>}
           </CardContent>
         </Card>
       </div>
