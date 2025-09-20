@@ -130,15 +130,15 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(({ ctx, next }) => {
-    if (!ctx.session?.user) {
+    const { session, ...rest } = ctx;
+    if (!session?.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
-    return next({
-      ctx: {
-        // infers the `session` as non-nullable
-        session: { ...ctx.session, user: ctx.session.user },
-      },
-    });
+    const authedCtx: AuthedContext = {
+      ...rest,
+      session: { ...session, user: session.user },
+    };
+    return next({ ctx: authedCtx });
   });
 
 /**

@@ -1,41 +1,55 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { analyticsRouter } from "@/server/api/routers/analytics";
-import type { UserRole } from "@prisma/client";
+import { OutcomeStatus, OutcomeType, type Prisma, type UserRole } from "@prisma/client";
+import {
+  buildCoverageOutcome,
+  buildCoverageTechnique,
+  buildMitreTactic,
+  type CoverageTechnique,
+} from "./factories/analytics";
+
+const { mitreTacticFindMany, techniqueFindMany } = vi.hoisted(() => ({
+  mitreTacticFindMany: vi.fn<[], Promise<Prisma.MitreTactic[]>>(),
+  techniqueFindMany: vi.fn<[], Promise<CoverageTechnique[]>>(),
+}));
 
 vi.mock("@/server/db", () => ({
   db: {
-    mitreTactic: { findMany: vi.fn() },
-    technique: { findMany: vi.fn() },
+    mitreTactic: { findMany: mitreTacticFindMany },
+    technique: { findMany: techniqueFindMany },
   },
 }));
 
 const { db } = await import("@/server/db");
-const mockDb = vi.mocked(db);
+const mockDb = vi.mocked(db, true);
 
 const createCtx = (role: UserRole = "ADMIN") => ({
   session: { user: { id: "u1", role }, expires: new Date().toISOString() },
   db: mockDb,
   headers: new Headers(),
+  requestId: "analytics-tactics-test",
 });
 
 describe("Analytics Coverage byTactic completeness", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns all tactics zero-filled when no executions exist", async () => {
-    mockDb.mitreTactic.findMany.mockResolvedValue([
-      { id: "TA0001", name: "Initial Access" },
-      { id: "TA0002", name: "Execution" },
-      { id: "TA0003", name: "Persistence" },
-    ] as any);
-    mockDb.technique.findMany.mockResolvedValue([] as any);
+    const tactics: Prisma.MitreTactic[] = [
+      buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
+      buildMitreTactic({ id: "TA0002", name: "Execution" }),
+      buildMitreTactic({ id: "TA0003", name: "Persistence" }),
+    ];
+    mitreTacticFindMany.mockResolvedValue(tactics);
+    const techniques: CoverageTechnique[] = [];
+    mockDb.technique.findMany.mockResolvedValue(techniques);
 
     const caller = analyticsRouter.createCaller(createCtx());
     const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
 
     expect(result).toHaveLength(3);
-    const ids = result.map(r => r.tacticId).sort();
+    const ids = result.map((r) => r.tacticId).sort();
     expect(ids).toEqual(["TA0001", "TA0002", "TA0003"]);
-    result.forEach(r => {
+    result.forEach((r) => {
       expect(r.plannedCount).toBe(0);
       expect(r.executedCount).toBe(0);
       expect(r.executedAttemptCount).toBe(0);
@@ -50,36 +64,48 @@ describe("Analytics Coverage byTactic completeness", () => {
   });
 
   it("overlays executions onto pre-seeded tactics", async () => {
-    mockDb.mitreTactic.findMany.mockResolvedValue([
-      { id: "TA0001", name: "Initial Access" },
-      { id: "TA0002", name: "Execution" },
-    ] as any);
-    mockDb.technique.findMany.mockResolvedValue([
-      {
-        operationId: 1,
-        mitreTechniqueId: "T1566",
-        startTime: new Date(),
-        mitreTechnique: { tactic: { id: "TA0001", name: "Initial Access" } },
-        outcomes: [
-          { type: "DETECTION", status: "DETECTED" },
-          { type: "PREVENTION", status: "MISSED" },
-        ],
+    const tactics: Prisma.MitreTactic[] = [
+      buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
+      buildMitreTactic({ id: "TA0002", name: "Execution" }),
+    ];
+    mitreTacticFindMany.mockResolvedValue(tactics);
+
+    const executedTechnique = buildCoverageTechnique({
+      id: "tech-1",
+      operationId: 1,
+      mitreTechniqueId: "T1566",
+      startTime: new Date(),
+      mitreTechnique: {
+        tactic: buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
       },
-      {
-        operationId: 2,
-        mitreTechniqueId: "T1078",
-        startTime: null,
-        mitreTechnique: { tactic: { id: "TA0001", name: "Initial Access" } },
-        outcomes: [],
+      outcomes: [
+        buildCoverageOutcome("tech-1", { type: OutcomeType.DETECTION, status: OutcomeStatus.DETECTED }),
+        buildCoverageOutcome("tech-1", { type: OutcomeType.PREVENTION, status: OutcomeStatus.MISSED }),
+      ],
+    });
+
+    const plannedTechnique = buildCoverageTechnique({
+      id: "tech-2",
+      operationId: 2,
+      mitreTechniqueId: "T1078",
+      startTime: null,
+      mitreTechnique: {
+        id: "T1078",
+        tacticId: "TA0001",
+        tactic: buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
       },
-    ] as any);
+      outcomes: [],
+    });
+
+    const techniqueResults: CoverageTechnique[] = [executedTechnique, plannedTechnique];
+    mockDb.technique.findMany.mockResolvedValue(techniqueResults);
 
     const caller = analyticsRouter.createCaller(createCtx());
     const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
 
     expect(result).toHaveLength(2);
-    const init = result.find(r => r.tacticId === "TA0001")!;
-    const exec = result.find(r => r.tacticId === "TA0002")!;
+    const init = result.find((r) => r.tacticId === "TA0001")!;
+    const exec = result.find((r) => r.tacticId === "TA0002")!;
     expect(init.plannedCount).toBe(2);
     expect(init.executedCount).toBe(1);
     expect(init.executedAttemptCount).toBe(1);
@@ -95,32 +121,37 @@ describe("Analytics Coverage byTactic completeness", () => {
   });
 
   it("orders tactics canonically with Recon/Resource first", async () => {
-    mockDb.mitreTactic.findMany.mockResolvedValue([
-      { id: "TA0001", name: "Initial Access" },
-      { id: "TA0043", name: "Reconnaissance" },
-      { id: "TA0042", name: "Resource Development" },
-    ] as any);
-    mockDb.technique.findMany.mockResolvedValue([] as any);
+    const tactics: Prisma.MitreTactic[] = [
+      buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
+      buildMitreTactic({ id: "TA0043", name: "Reconnaissance" }),
+      buildMitreTactic({ id: "TA0042", name: "Resource Development" }),
+    ];
+    mitreTacticFindMany.mockResolvedValue(tactics);
+    const techniques: CoverageTechnique[] = [];
+    mockDb.technique.findMany.mockResolvedValue(techniques);
 
     const caller = analyticsRouter.createCaller(createCtx());
     const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
-    const order = result.map(r => r.tacticId);
+    const order = result.map((r) => r.tacticId);
     expect(order).toEqual(["TA0043", "TA0042", "TA0001"]);
   });
 
   it("counts operations where a tactic was only planned", async () => {
-    mockDb.mitreTactic.findMany.mockResolvedValue([
-      { id: "TA0001", name: "Initial Access" },
-    ] as any);
-    mockDb.technique.findMany.mockResolvedValue([
-      {
-        operationId: 42,
-        mitreTechniqueId: "T1190",
-        startTime: null,
-        mitreTechnique: { tactic: { id: "TA0001", name: "Initial Access" } },
-        outcomes: [],
+    const tactics: Prisma.MitreTactic[] = [buildMitreTactic({ id: "TA0001", name: "Initial Access" })];
+    mitreTacticFindMany.mockResolvedValue(tactics);
+    const plannedOnly = buildCoverageTechnique({
+      id: "tech-3",
+      operationId: 42,
+      mitreTechniqueId: "T1190",
+      startTime: null,
+      mitreTechnique: {
+        id: "T1190",
+        tactic: buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
       },
-    ] as any);
+      outcomes: [],
+    });
+    const plannedTechniques: CoverageTechnique[] = [plannedOnly];
+    mockDb.technique.findMany.mockResolvedValue(plannedTechniques);
 
     const caller = analyticsRouter.createCaller(createCtx());
     const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });

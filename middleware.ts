@@ -24,25 +24,6 @@ export const middleware = auth(async (request) => {
     signInUrl.searchParams.set('callbackUrl', request.url);
     return NextResponse.redirect(signInUrl);
   }
-  // Enforce password change if the token/session indicates reset is required
-  const mustChange = (session.user as { mustChangePassword?: boolean }).mustChangePassword === true;
-  if (mustChange) {
-    const isApiRoute = pathname.startsWith('/api') && !pathname.startsWith('/api/auth');
-    // Allow the password change page and the specific tRPC mutation endpoint used by that page
-    const isChangePage =
-      pathname.startsWith('/auth/change-password') ||
-      pathname.startsWith('/api/auth') ||
-      pathname.startsWith('/api/trpc/users.changeOwnPassword');
-    if (!isChangePage) {
-      if (isApiRoute) {
-        return NextResponse.json({ error: 'PASSWORD_CHANGE_REQUIRED' }, { status: 403 });
-      }
-      const changeUrl = new URL('/auth/change-password', request.url);
-      changeUrl.searchParams.set('callbackUrl', request.url);
-      return NextResponse.redirect(changeUrl);
-    }
-  }
-
   return NextResponse.next();
 });
 

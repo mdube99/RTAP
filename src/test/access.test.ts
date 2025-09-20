@@ -9,6 +9,7 @@ const makeCtx = (userId = "user-1", role: "ADMIN" | "OPERATOR" | "VIEWER" = "OPE
   db: {
     operation: { findUnique: vi.fn() },
   } as any,
+  requestId: "access-test",
 });
 
 describe("Access helpers", () => {

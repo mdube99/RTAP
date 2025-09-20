@@ -16,7 +16,10 @@ npm install
 # Initialize schema and seed first-run admin + MITRE
 npm run init
 
-# Optionally - seed demo taxonomy/operation data
+# If not using SSO, generate 1-time login URL to set up your first passkey
+npm run generate-admin-login
+
+# Optionally - seed demo taxonomy/operation data FOR DEMO PURPOSES ONLY)
 npx tsx scripts/demo-data.ts
 
 # Start development server (or use one-liner: `npm run dev:with-init`)
@@ -35,17 +38,24 @@ cp .env.example .env
 
 docker compose up -d
 
-# Optionally - seed demo taxonomy/operation data
+# Optionally - seed demo taxonomy/operation data (FOR DEMO PURPOSES ONLY)
 docker exec ttpx-web npx tsx scripts/demo-data.ts
+
+# If not using SSO, generate 1-time login URL to set up your first passkey
+docker exec ttpx-web npm run generate-admin-login
 
 # Destroy all data and start from scratch - WARNING YOU WILL LOSE YOUR DB
 docker compose down
 docker system prune -a --volumes
 ```
 
-Notes:
+## Authentication
 
-- First login forces a password change.
+There is no support for traditional passwords. If you are using SSO, the `INITIAL_ADMIN_EMAIL` is created as a local account at initialization and should be accessible to login via your SSO provider.
+
+If not using SSO, you need to generate a 1-time-login link for that same `INITIAL_ADMIN_EMAIL` user. This will allow you to login so you can add a passkey to your account. From there, continue logging in with your passkey. The `npm run generate-admin-login` command can be re-run in emergencies where you lost your admin passkey.
+
+When creating new users in the UI, you will be presented with a similar 1-time-login link for them. They will need to register a passkey when they first login.
 
 ## Logging
 
@@ -56,13 +66,13 @@ Notes:
 
 SSO is enabled through environment variables. Users must be provisioned ahead of time; they are **not** auto-created on first SSO login.
 
-For a pure-SSO setup, set `INITIAL_ADMIN_EMAIL` to a value from the SSO provider and disable password authentication if desired.
+For a pure-SSO setup, set `INITIAL_ADMIN_EMAIL` to a value from the SSO provider. Passkeys can be enabled alongside SSO when desired.
 
 Environment variables:
 
 ```
-# Toggle credentials provider (default: enabled)
-AUTH_CREDENTIALS_ENABLED=true
+# Toggle passkey provider (default: disabled)
+AUTH_PASSKEYS_ENABLED=true
 
 # Register Google provider when present (optional)
 GOOGLE_CLIENT_ID=

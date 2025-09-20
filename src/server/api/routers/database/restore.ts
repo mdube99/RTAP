@@ -1,8 +1,35 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { createTRPCRouter, adminProcedure } from "@/server/api/trpc";
+import type { AuthedContext } from "@/server/api/trpc";
+import type { DatabaseClient } from "@/server/db";
 import { TRPCError } from "@trpc/server";
 import { logger } from "@/server/logger";
+
+const isDatabaseClient = (value: unknown): value is DatabaseClient => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as {
+    $transaction?: unknown;
+    operation?: { deleteMany?: unknown };
+    threatActor?: { deleteMany?: unknown };
+  };
+
+  return (
+    typeof candidate.$transaction === "function" &&
+    typeof candidate.operation?.deleteMany === "function" &&
+    typeof candidate.threatActor?.deleteMany === "function"
+  );
+};
+
+const getPrismaClient = (value: unknown): DatabaseClient => {
+  if (!isDatabaseClient(value)) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database client not initialized" });
+  }
+  return value;
+};
 
 const threatActorSchema = z.object({ id: z.string().optional(), name: z.string(), description: z.string(), topThreat: z.boolean().optional() });
 const crownJewelSchema = z.object({ id: z.string().optional(), name: z.string(), description: z.string() });
@@ -53,6 +80,18 @@ const outcomeSchema = z.object({
 });
 const attackFlowLayoutSchema = z.object({ id: z.string().optional(), operationId: z.number(), nodes: z.custom<Prisma.InputJsonValue>(), edges: z.custom<Prisma.InputJsonValue>() });
 const threatActorTechniqueLinkSchema = z.object({ threatActorId: z.string(), mitreTechniqueId: z.string() });
+const authenticatorSchema = z.object({
+  id: z.string().optional(),
+  credentialID: z.string(),
+  userId: z.string(),
+  providerAccountId: z.string(),
+  credentialPublicKey: z.string(),
+  counter: z.number(),
+  credentialDeviceType: z.string(),
+  credentialBackedUp: z.boolean(),
+  transports: z.string().optional().nullable(),
+});
+
 const backupPayloadSchema = z.object({
   threatActors: z.array(threatActorSchema).optional(),
   crownJewels: z.array(crownJewelSchema).optional(),
@@ -65,7 +104,14 @@ const backupPayloadSchema = z.object({
   outcomes: z.array(outcomeSchema).optional(),
   attackFlowLayouts: z.array(attackFlowLayoutSchema).optional(),
   threatActorTechniqueLinks: z.array(threatActorTechniqueLinkSchema).optional(),
-  users: z.array(z.object({ id: z.string().optional(), email: z.string().email(), name: z.string().nullable().optional(), role: z.enum(["ADMIN", "OPERATOR", "VIEWER"]).optional(), password: z.string().optional() })).optional(),
+  users: z.array(z.object({
+    id: z.string().optional(),
+    email: z.string().email(),
+    name: z.string().nullable().optional(),
+    role: z.enum(["ADMIN", "OPERATOR", "VIEWER"]).optional(),
+    lastLogin: z.coerce.date().optional().nullable(),
+  })).optional(),
+  authenticators: z.array(authenticatorSchema).optional(),
   groups: z.array(z.object({ id: z.string().optional(), name: z.string(), description: z.string() })).optional(),
   userGroups: z.array(z.object({ userId: z.string(), groupId: z.string() })).optional(),
   mitreTactics: z.array(z.unknown()).optional(),
@@ -78,7 +124,8 @@ type BackupPayload = z.infer<typeof backupPayloadSchema>;
 export const databaseRestoreRouter = createTRPCRouter({
   restore: adminProcedure
     .input(z.object({ backupData: z.string(), restoreTaxonomyAndOperations: z.boolean().default(true), restoreUsersAndGroups: z.boolean().default(false), clearBefore: z.boolean().default(true) }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }: { ctx: AuthedContext; input: { backupData: string; restoreTaxonomyAndOperations: boolean; restoreUsersAndGroups: boolean; clearBefore: boolean } }) => {
+      const db = getPrismaClient(ctx.db);
       try {
         const data = JSON.parse(input.backupData) as { version?: string; data?: unknown };
         if (!data.version || !data.data) throw new Error("Invalid backup format");
@@ -86,7 +133,7 @@ export const databaseRestoreRouter = createTRPCRouter({
         if (input.restoreTaxonomyAndOperations && !input.clearBefore) throw new Error("Restoring taxonomy and operations requires clearing existing data first");
 
         if (input.clearBefore && input.restoreTaxonomyAndOperations) {
-          await ctx.db.$transaction(async (tx) => {
+          await db.$transaction(async (tx: Prisma.TransactionClient) => {
             await tx.outcome.deleteMany();
             await tx.technique.deleteMany();
             await tx.operation.deleteMany();
@@ -101,7 +148,7 @@ export const databaseRestoreRouter = createTRPCRouter({
 
         const payload: BackupPayload = backupPayloadSchema.parse(data.data);
 
-        await ctx.db.$transaction(async (tx) => {
+        await db.$transaction(async (tx: Prisma.TransactionClient) => {
           if (input.restoreUsersAndGroups) {
             if (payload.users?.length) {
               for (const user of payload.users) {
@@ -110,13 +157,32 @@ export const databaseRestoreRouter = createTRPCRouter({
                   update: {
                     name: user.name ?? undefined,
                     role: user.role ?? undefined,
-                    password: user.password ?? undefined,
+                    lastLogin: user.lastLogin ?? undefined,
                   },
                   create: {
                     email: user.email,
                     name: user.name ?? null,
                     role: user.role ?? "VIEWER",
-                    password: user.password ?? null,
+                    lastLogin: user.lastLogin ?? null,
+                  },
+                });
+              }
+            }
+
+            if (payload.authenticators) {
+              await tx.authenticator.deleteMany();
+              for (const auth of payload.authenticators) {
+                await tx.authenticator.create({
+                  data: {
+                    id: auth.id,
+                    credentialID: auth.credentialID,
+                    userId: auth.userId,
+                    providerAccountId: auth.providerAccountId,
+                    credentialPublicKey: auth.credentialPublicKey,
+                    counter: auth.counter,
+                    credentialDeviceType: auth.credentialDeviceType,
+                    credentialBackedUp: auth.credentialBackedUp,
+                    transports: auth.transports ?? null,
                   },
                 });
               }
@@ -261,9 +327,10 @@ export const databaseRestoreRouter = createTRPCRouter({
 
   clearData: adminProcedure
     .input(z.object({ clearOperations: z.boolean(), clearTaxonomy: z.boolean() }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }: { ctx: AuthedContext; input: { clearOperations: boolean; clearTaxonomy: boolean } }) => {
+      const db = getPrismaClient(ctx.db);
       try {
-        await ctx.db.$transaction(async (tx) => {
+        await db.$transaction(async (tx: Prisma.TransactionClient) => {
           if (input.clearOperations) {
             await tx.outcome.deleteMany();
             await tx.technique.deleteMany();

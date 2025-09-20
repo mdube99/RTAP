@@ -58,7 +58,7 @@ vi.mock("@/server/db", () => ({
 }));
 
 const { db } = await import("@/server/db");
-const mockDb = vi.mocked(db);
+const mockDb = vi.mocked(db, true);
 
 // Helper to create mock context
 const createMockContext = (userRole: UserRole = UserRole.ADMIN, userId = "test-user-id") => ({
@@ -68,6 +68,7 @@ const createMockContext = (userRole: UserRole = UserRole.ADMIN, userId = "test-u
   },
   db: mockDb,
   headers: new Headers(),
+  requestId: "taxonomy-test",
 });
 
 describe("Taxonomy Router", () => {

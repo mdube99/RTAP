@@ -67,7 +67,7 @@ Use `eslint-plugin-boundaries` and `no-restricted-imports` to discourage crossâ€
   - Do not duplicate auth checks in child layouts/pages under the group. Rely on the group layout for auth.
   - Keep `src/app/(protected-routes)/settings/layout.tsx` for the admin-only rule; it should only enforce `session.user.role === ADMIN` (assumes auth already passed).
   - Keep public auth at `src/app/(public-routes)/auth/signin/**`.
-  - `/auth/change-password` lives inside the protected group; middleware explicitly allows it during `mustChangePassword` flows.
+  - Passkey enrollment happens from the account page after first login via a one-time link.
   - The homepage `/` is under the protected group and does not need page-level `auth()`.
 
 ## API Architecture

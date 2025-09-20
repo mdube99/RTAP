@@ -11,7 +11,8 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-const mockDb = (await import("@/server/db")).db as any;
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 
 describe("Users Router — update/delete", () => {
   beforeEach(() => {
@@ -19,14 +20,56 @@ describe("Users Router — update/delete", () => {
   });
 
   it("updates user details", async () => {
-    const updateData = { id: "user-123", name: "Updated Name", email: "updated@test.com", role: UserRole.OPERATOR, mustChangePassword: false } as const;
-    const mockUpdatedUser = { ...updateData, lastLogin: null, twoFactorEnabled: false } as const;
+    const updateData = { id: "user-123", name: "Updated Name", email: "updated@test.com", role: UserRole.OPERATOR } as const;
+    const mockUpdatedUser = {
+      id: updateData.id,
+      name: updateData.name,
+      email: updateData.email,
+      role: updateData.role,
+      lastLogin: null,
+      _count: { authenticators: 1 },
+    };
     mockDb.user.findFirst.mockResolvedValue(null);
     mockDb.user.update.mockResolvedValue(mockUpdatedUser);
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
     const res = await caller.update(updateData);
-    expect(res).toEqual(mockUpdatedUser);
+    expect(res).toEqual({
+      id: updateData.id,
+      name: updateData.name,
+      email: updateData.email,
+      role: updateData.role,
+      lastLogin: null,
+      passkeyCount: 1,
+    });
+  });
+
+  it("normalizes email casing before updating", async () => {
+    const updateData = {
+      id: "user-123",
+      name: "Updated Name",
+      email: "Updated@Test.com ",
+      role: UserRole.OPERATOR,
+    } as const;
+    const normalizedEmail = "updated@test.com";
+    mockDb.user.findFirst.mockResolvedValue(null);
+    mockDb.user.update.mockResolvedValue({
+      id: updateData.id,
+      name: updateData.name,
+      email: normalizedEmail,
+      role: updateData.role,
+      lastLogin: null,
+      _count: { authenticators: 0 },
+    });
+    const ctx = createTestContext(mockDb, UserRole.ADMIN);
+    const caller = usersRouter.createCaller(ctx);
+    const res = await caller.update(updateData);
+
+    expect(mockDb.user.findFirst).toHaveBeenCalledWith({ where: { email: normalizedEmail, id: { not: updateData.id } } });
+    expect(mockDb.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ email: normalizedEmail }) }),
+    );
+    expect(res.email).toBe(normalizedEmail);
   });
 
   it("prevents admin from removing their own admin role", async () => {
@@ -66,4 +109,3 @@ describe("Users Router — update/delete", () => {
     );
   });
 });
-

@@ -10,65 +10,110 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-vi.mock("@/server/auth/password", () => ({ hashPassword: vi.fn(), verifyPassword: vi.fn() }));
+vi.mock("@/server/auth/login-link", () => ({
+  LOGIN_LINK_PROVIDER_ID: "login-link",
+  createLoginLink: vi.fn().mockResolvedValue({
+    url: "https://app/api/auth/callback/login-link?token=abc",
+    expires: new Date("2025-01-01T00:00:00Z"),
+  }),
+}));
 
-const mockDb = (await import("@/server/db")).db as any;
-const { hashPassword } = await import("@/server/auth/password");
-const mockHashPassword = vi.mocked(hashPassword);
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
+const { createLoginLink } = await import("@/server/auth/login-link");
+const mockCreateLoginLink = vi.mocked(createLoginLink);
 
 describe("Users Router — create & validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("creates new user with hashed password", async () => {
-    const newUserData = { email: "newuser@test.com", name: "New User", password: "password123", role: UserRole.OPERATOR, mustChangePassword: true };
-    const hashedPassword = "hashed-password-123";
-    const mockCreatedUser = { id: "new-user-id", name: newUserData.name, email: newUserData.email, role: newUserData.role, lastLogin: null, twoFactorEnabled: false, mustChangePassword: true };
+  it("creates new user and returns login link", async () => {
+    const newUserData = { email: "newuser@test.com", name: "New User", role: UserRole.OPERATOR } as const;
+    const mockCreatedUser = {
+      id: "new-user-id",
+      name: newUserData.name,
+      email: newUserData.email,
+      role: newUserData.role,
+      lastLogin: null,
+      _count: { authenticators: 0 },
+    };
     mockDb.user.findUnique.mockResolvedValue(null);
-    mockHashPassword.mockResolvedValue(hashedPassword);
     mockDb.user.create.mockResolvedValue(mockCreatedUser);
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
     const result = await caller.create(newUserData);
-    expect(result).toEqual(mockCreatedUser);
+
+    expect(result.user).toEqual({
+      id: "new-user-id",
+      name: "New User",
+      email: "newuser@test.com",
+      role: UserRole.OPERATOR,
+      lastLogin: null,
+      passkeyCount: 0,
+    });
+    expect(result.loginLink.url).toContain("token=abc");
+    expect(mockCreateLoginLink).toHaveBeenCalledWith(mockDb, { email: newUserData.email });
+  });
+
+  it("normalizes email casing before persisting", async () => {
+    const newUserData = { email: "NewUser@TEST.com ", name: "New User", role: UserRole.OPERATOR } as const;
+    const normalizedEmail = "newuser@test.com";
+    const mockCreatedUser = {
+      id: "new-user-id",
+      name: newUserData.name,
+      email: normalizedEmail,
+      role: newUserData.role,
+      lastLogin: null,
+      _count: { authenticators: 0 },
+    };
+    mockDb.user.findUnique.mockResolvedValue(null);
+    mockDb.user.create.mockResolvedValue(mockCreatedUser);
+    const ctx = createTestContext(mockDb, UserRole.ADMIN);
+    const caller = usersRouter.createCaller(ctx);
+    await caller.create(newUserData);
+
+    expect(mockDb.user.findUnique).toHaveBeenCalledWith({ where: { email: normalizedEmail } });
+    expect(mockDb.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ email: normalizedEmail }) }),
+    );
+    expect(mockCreateLoginLink).toHaveBeenCalledWith(mockDb, { email: normalizedEmail });
   });
 
   it("throws when email already exists", async () => {
     mockDb.user.findUnique.mockResolvedValue({ id: "existing", email: "existing@test.com" });
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
-    await expect(caller.create({ email: "existing@test.com", name: "Test", password: "password123", role: UserRole.VIEWER })).rejects.toThrow(
+    await expect(caller.create({ email: "existing@test.com", name: "Test", role: UserRole.VIEWER })).rejects.toThrow(
       new TRPCError({ code: "BAD_REQUEST", message: "User with this email already exists" }),
     );
   });
 
   it("defaults role to VIEWER", async () => {
     mockDb.user.findUnique.mockResolvedValue(null);
-    mockHashPassword.mockResolvedValue("hashed");
-    mockDb.user.create.mockResolvedValue({ id: "u", name: "Test", email: "test@test.com", role: UserRole.VIEWER });
+    mockDb.user.create.mockResolvedValue({
+      id: "u",
+      name: "Test",
+      email: "test@test.com",
+      role: UserRole.VIEWER,
+      lastLogin: null,
+      _count: { authenticators: 0 },
+    });
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
-    await caller.create({ email: "test@test.com", name: "Test User", password: "password123" });
+    await caller.create({ email: "test@test.com", name: "Test User" });
     expect(mockDb.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ role: UserRole.VIEWER }) }));
   });
 
   it("validates email format", async () => {
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
-    await expect(caller.create({ email: "bad", name: "Test", password: "password123", role: UserRole.VIEWER })).rejects.toThrow();
-  });
-
-  it("validates minimum password length", async () => {
-    const ctx = createTestContext(mockDb, UserRole.ADMIN);
-    const caller = usersRouter.createCaller(ctx);
-    await expect(caller.create({ email: "t@test.com", name: "Test", password: "123", role: UserRole.VIEWER })).rejects.toThrow();
+    await expect(caller.create({ email: "bad", name: "Test" })).rejects.toThrow();
   });
 
   it("validates minimum name length", async () => {
     const ctx = createTestContext(mockDb, UserRole.ADMIN);
     const caller = usersRouter.createCaller(ctx);
-    await expect(caller.create({ email: "t@test.com", name: "", password: "password123", role: UserRole.VIEWER })).rejects.toThrow();
+    await expect(caller.create({ email: "t@test.com", name: "" })).rejects.toThrow();
   });
 });
-

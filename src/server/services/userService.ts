@@ -1,13 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import type { PrismaClient, UserRole } from "@prisma/client";
-import { hashPassword } from "@/server/auth/password";
-
 export type CreateUserDTO = {
   email: string;
   name: string;
-  password: string;
   role: UserRole;
-  mustChangePassword: boolean;
 };
 
 export type UpdateUserDTO = {
@@ -15,36 +11,40 @@ export type UpdateUserDTO = {
   email?: string;
   name?: string;
   role?: UserRole;
-  mustChangePassword?: boolean;
 };
 
-export async function createUser(db: PrismaClient, dto: CreateUserDTO) {
-  const existing = await db.user.findUnique({ where: { email: dto.email } });
-  if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "User with this email already exists" });
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
 
-  const password = await hashPassword(dto.password);
+export async function createUser(db: PrismaClient, dto: CreateUserDTO) {
+  const email = normalizeEmail(dto.email);
+  const existing = await db.user.findUnique({ where: { email } });
+  if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "User with this email already exists" });
   return db.user.create({
     data: {
-      email: dto.email,
+      email,
       name: dto.name,
-      password,
       role: dto.role,
-      mustChangePassword: dto.mustChangePassword,
     },
     select: defaultUserSelect(),
   });
 }
 
 export async function updateUser(db: PrismaClient, dto: UpdateUserDTO) {
-  const { id, ...updateData } = dto;
-  if (updateData.email) {
-    const existing = await db.user.findFirst({ where: { email: updateData.email, id: { not: id } } });
+  const { id, email: emailInput, ...updateData } = dto;
+  const email = emailInput ? normalizeEmail(emailInput) : undefined;
+  if (email) {
+    const existing = await db.user.findFirst({ where: { email, id: { not: id } } });
     if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "Email is already taken by another user" });
   }
 
   return db.user.update({
     where: { id },
-    data: updateData,
+    data: {
+      ...updateData,
+      ...(email ? { email } : {}),
+    },
     select: defaultUserSelect(),
   });
 }
@@ -56,8 +56,7 @@ export function defaultUserSelect() {
     email: true,
     role: true,
     lastLogin: true,
-    twoFactorEnabled: true,
-    mustChangePassword: true,
+    _count: { select: { authenticators: true } },
   } as const;
 }
 

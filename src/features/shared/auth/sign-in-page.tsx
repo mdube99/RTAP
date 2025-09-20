@@ -2,75 +2,70 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@components/ui";
+import { signIn as signInOauth } from "next-auth/react";
+import { signIn as signInPasskey } from "next-auth/webauthn";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@components/ui";
 
 interface Props {
-  credsEnabled: boolean;
+  passkeysEnabled: boolean;
   googleEnabled: boolean;
   callbackUrl: string;
   initialError?: string;
 }
 
-export default function SignInPageClient({ credsEnabled, googleEnabled, callbackUrl, initialError }: Props) {
+export default function SignInPageClient({ passkeysEnabled, googleEnabled, callbackUrl, initialError }: Props) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"passkey" | "google" | null>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
 
   const toMessage = (err?: string | null) => {
     if (!err) return null;
     switch (err) {
-      case "CredentialsSignin":
-        return "Invalid email, password, or 2FA code.";
       case "AccessDenied":
         return "Access denied. Contact an administrator.";
+      case "Verification":
+        return "This login link has expired or was already used.";
       default:
         return "Sign-in failed. Please try again.";
     }
   };
 
-  const onCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handlePasskey = async () => {
+    if (!passkeysEnabled) return;
+    setLoading("passkey");
     setError(null);
     try {
-      const res = await signIn("credentials", {
-        email,
-        password,
-        code,
-        callbackUrl,
-        redirect: false,
-      });
+      const res = await signInPasskey("passkey", { callbackUrl, redirect: false });
       if (!res) {
-        setError("Sign-in failed. Please try again.");
+        setError("Passkey sign-in failed. Please try again.");
       } else if (res.error) {
         setError(toMessage(res.error));
       } else if (res.ok && res.url) {
         router.push(res.url);
       }
+    } catch {
+      setError("Passkey sign-in failed. Please try again.");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
-  const onGoogle = async () => {
-    setLoading(true);
+  const handleGoogle = async () => {
+    setLoading("google");
     setError(null);
     try {
-      const res = await signIn("google", { callbackUrl, redirect: false });
+      const res = await signInOauth("google", { callbackUrl, redirect: false });
       if (res?.error) {
         setError(toMessage(res.error));
       } else if (res?.url) {
-        // Use hard navigation for external OAuth URLs to avoid client-side flicker
         window.location.assign(res.url);
       }
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
+
+  const nothingEnabled = !googleEnabled && !passkeysEnabled;
 
   return (
     <div className="min-h-screen grid place-items-center p-6">
@@ -89,40 +84,33 @@ export default function SignInPageClient({ credsEnabled, googleEnabled, callback
             </div>
           )}
 
-          {googleEnabled && (
-            <Button variant="glass" className="w-full" onClick={onGoogle} disabled={loading}>
-              Continue with Google
+          {passkeysEnabled && (
+            <Button
+              variant="glass"
+              className="w-full"
+              onClick={handlePasskey}
+              disabled={loading !== null}
+            >
+              {loading === "passkey" ? "Connecting…" : "Sign in with Passkey"}
             </Button>
           )}
 
-          {googleEnabled && credsEnabled && (
+          {googleEnabled && passkeysEnabled && (
             <div className="relative text-center">
               <div className="h-px bg-[var(--color-border)]" />
-              <span className="inline-block px-2 text-xs text-[var(--color-text-muted)] bg-[var(--color-surface)] -mt-2 relative">or</span>
+              <span className="inline-block px-2 text-xs text-[var(--color-text-muted)] bg-[var(--color-surface)] -mt-2 relative">
+                or
+              </span>
             </div>
           )}
 
-          {credsEnabled && (
-            <form onSubmit={onCredentials} className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="code">2FA Code (if enabled)</Label>
-                <Input id="code" inputMode="numeric" pattern="[0-9]*" value={code} onChange={(e) => setCode(e.target.value)} />
-              </div>
-              <Button type="submit" variant="glass" className="w-full" disabled={loading}>
-                {loading ? "Signing in…" : "Sign in"}
-              </Button>
-            </form>
+          {googleEnabled && (
+            <Button variant="glass" className="w-full" onClick={handleGoogle} disabled={loading !== null}>
+              {loading === "google" ? "Redirecting…" : "Continue with Google"}
+            </Button>
           )}
 
-          {!googleEnabled && !credsEnabled && (
+          {nothingEnabled && (
             <div className="text-sm text-[var(--color-text-secondary)]">
               No sign-in methods are currently enabled. Please contact an administrator.
             </div>

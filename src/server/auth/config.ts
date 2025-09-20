@@ -1,18 +1,17 @@
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
+import type { Adapter } from "next-auth/adapters";
 import type { JWT as NextAuthJWT } from "next-auth/jwt";
-import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { z } from "zod";
+import Passkey from "next-auth/providers/passkey";
+import type { EmailConfig } from "next-auth/providers/email";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import { type UserRole } from "@prisma/client";
-import { authenticator } from "otplib";
 
 import { db } from "@/server/db";
-import { verifyPassword, hasLegacyResetSuffix } from "./password";
-import { authRateLimit } from "@/lib/rateLimit";
-import { auditEvent, getClientIpFromHeaders, logger } from "@/server/logger";
+import { auditEvent, logger } from "@/server/logger";
 import { env } from "@/env";
 import { headers } from "next/headers";
-// Env-only SSO: no DB-backed provider configuration
+import { LOGIN_LINK_PROVIDER_ID } from "./constants";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -25,7 +24,6 @@ declare module "next-auth" {
     user: {
       id: string;
       role: UserRole;
-      mustChangePassword?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -34,16 +32,112 @@ declare module "next-auth" {
   }
 }
 
-// Local extension for JWT to carry role + mustChangePassword
-type AugmentedJWT = NextAuthJWT & { role?: UserRole; mustChangePassword?: boolean };
+declare module "@auth/core/adapters" {
+  interface AdapterUser {
+    role: UserRole;
+  }
+}
 
+// Local extension for JWT to carry role information
+type AugmentedJWT = NextAuthJWT & { role?: UserRole };
 
-// Credentials schema for validation
-const credentialsSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  code: z.string().optional(),
-});
+const loginLinkProvider: EmailConfig = {
+  id: LOGIN_LINK_PROVIDER_ID,
+  type: "email",
+  name: "One-time Link",
+  maxAge: 60 * 60, // 1 hour
+  async sendVerificationRequest() {
+    // Login links are generated via scripts/admin tooling only.
+    throw new Error("Login link generation is restricted to administrators.");
+  },
+  options: {},
+};
+
+const passkeysEnabled = env.AUTH_PASSKEYS_ENABLED === "true";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const adapterMethods: (keyof Adapter)[] = [
+  "createUser",
+  "getUser",
+  "getUserByEmail",
+  "getUserByAccount",
+  "updateUser",
+  "deleteUser",
+  "linkAccount",
+  "unlinkAccount",
+  "createSession",
+  "getSessionAndUser",
+  "updateSession",
+  "deleteSession",
+  "createVerificationToken",
+  "useVerificationToken",
+];
+
+const isAdapterFactory = (value: unknown): value is (client: typeof db) => Adapter =>
+  typeof value === "function";
+
+const isAdapter = (value: unknown): value is Adapter => {
+  if (!isRecord(value)) return false;
+  return adapterMethods.every((method) => {
+    const prop = value[method as keyof typeof value];
+    return prop === undefined || typeof prop === "function";
+  });
+};
+
+const prismaAdapter = (() => {
+  if (!isAdapterFactory(PrismaAdapter)) {
+    throw new Error("Invalid Prisma adapter export");
+  }
+  const candidate = PrismaAdapter(db);
+  if (!isAdapter(candidate)) {
+    throw new Error("Prisma adapter returned an unexpected shape");
+  }
+  return candidate;
+})();
+
+const isErrorLike = (
+  value: unknown,
+): value is { name?: unknown; message?: unknown; stack?: unknown } => isRecord(value);
+
+async function resolveUserIdentity(user: {
+  id?: string | null;
+  email?: string | null;
+  role?: UserRole;
+} | null | undefined) {
+  if (!user) return null;
+  if (user.role && user.id) {
+    return { id: user.id, role: user.role };
+  }
+
+  if (user.id) {
+    try {
+      const existingById = await db.user.findUnique({
+        where: { id: user.id },
+        select: { id: true, role: true },
+      });
+      if (existingById) return existingById;
+    } catch (error) {
+      logger.warn({ event: "auth.resolve_user_failed", id: user.id, error }, "Failed resolving user by id");
+    }
+  }
+
+  const email = user.email?.toLowerCase();
+  if (email) {
+    try {
+      const existingByEmail = await db.user.findUnique({
+        where: { email },
+        select: { id: true, role: true },
+      });
+      if (existingByEmail) return existingByEmail;
+    } catch (error) {
+      logger.warn({ event: "auth.resolve_user_failed", email, error }, "Failed resolving user by email");
+    }
+  }
+
+  return null;
+}
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
@@ -51,150 +145,49 @@ const credentialsSchema = z.object({
  * @see https://next-auth.js.org/configuration/options
  */
 export const authConfig = {
+  adapter: prismaAdapter,
   useSecureCookies: env.AUTH_URL?.startsWith("https://") ?? false,
+  experimental: passkeysEnabled ? { enableWebAuthn: true } : undefined,
   // Route Auth.js logs through our Pino logger for concise, structured output
   logger: {
     error(error) {
-      const payload: Record<string, unknown> = { event: 'authjs.error', name: (error as { name?: string }).name };
-      if (error?.message) payload.message = error.message;
-      if (process.env.NODE_ENV === 'development' && (error as { stack?: string }).stack) {
-        payload.stack = (error as { stack?: string }).stack;
+      const payload: Record<string, unknown> = { event: "authjs.error" };
+      const errorDetails = isErrorLike(error) ? error : null;
+
+      if (errorDetails && typeof errorDetails.name === "string") {
+        payload.name = errorDetails.name;
       }
-      logger.error(payload, 'Auth.js error');
+
+      if (typeof error === "string") {
+        payload.message = error;
+      } else if (errorDetails && typeof errorDetails.message === "string") {
+        payload.message = errorDetails.message;
+      }
+
+      if (
+        process.env.NODE_ENV === "development" &&
+        errorDetails &&
+        typeof errorDetails.stack === "string"
+      ) {
+        payload.stack = errorDetails.stack;
+      }
+
+      logger.error(payload, "Auth.js error");
     },
     warn(code) {
-      logger.warn({ event: 'authjs.warn', code }, 'Auth.js warn');
+      logger.warn({ event: "authjs.warn", code }, "Auth.js warn");
     },
     debug(message, metadata) {
-      if (process.env.NODE_ENV === 'development') {
-        const payload: Record<string, unknown> = { event: 'authjs.debug', message };
-        if (metadata && typeof metadata === 'object') Object.assign(payload, metadata as Record<string, unknown>);
-        logger.debug(payload, 'Auth.js debug');
+      if (process.env.NODE_ENV === "development") {
+        const payload: Record<string, unknown> = { event: "authjs.debug", message };
+        if (isRecord(metadata)) Object.assign(payload, metadata);
+        logger.debug(payload, "Auth.js debug");
       }
     },
   },
   providers: [
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        let attemptedEmail: string | undefined = undefined;
-        // Resolve client IP for security event logging
-        let ip: string | undefined = undefined;
-        try {
-          try {
-            const requestHeaders = await headers();
-            ip = getClientIpFromHeaders(requestHeaders);
-          } catch {}
-
-          // Respect credentials provider toggle (default enabled when missing)
-          const credsEnabled = env.AUTH_CREDENTIALS_ENABLED !== "false";
-          if (!credsEnabled) {
-            logger.warn({ event: "auth.credentials_disabled", ip }, "Credentials provider disabled");
-            return null;
-          }
-
-          // Skip rate limiting in development to avoid first-login issues
-          if (process.env.NODE_ENV !== "development") {
-            const rateLimitResult = await authRateLimit();
-            if (!rateLimitResult.success) {
-              logger.warn({ event: "auth.rate_limited", ip, limit: rateLimitResult.limit }, "Too many login attempts");
-              throw new Error("Too many login attempts. Please try again later.");
-            }
-          }
-
-          const parsed = credentialsSchema.safeParse(credentials);
-
-          if (!parsed.success) {
-            logger.warn({ event: "auth.invalid_login_payload", ip }, "Invalid login attempt");
-            return null;
-          }
-
-          const { email, password, code } = parsed.data;
-          attemptedEmail = email;
-
-          // Find user by email with a 5s timeout to avoid hanging
-          let timeout: NodeJS.Timeout | undefined;
-          const lookup = await Promise.race([
-            db.user.findUnique({ where: { email } }),
-            new Promise<"timeout">((resolve) => {
-              timeout = setTimeout(() => resolve("timeout"), 5000);
-            }),
-          ]);
-          if (timeout) clearTimeout(timeout);
-
-          if (lookup === "timeout") {
-            throw new Error("Login lookup timed out");
-          }
-
-          const user = lookup;
-
-          if (!user?.password) {
-            logger.warn({ event: "auth.invalid_login_user_not_found", email, ip }, "Invalid login attempt");
-            return null;
-          }
-
-          // Verify password
-          const isValidPassword = await verifyPassword(password, user.password);
-          const legacyReset = hasLegacyResetSuffix(user.password);
-
-          if (!isValidPassword) {
-            logger.warn({ event: "auth.invalid_password", email, ip }, "Invalid login attempt");
-            return null;
-          }
-
-          // If user has TOTP enabled, require valid code
-          if ((user as { twoFactorEnabled?: boolean }).twoFactorEnabled) {
-            const secret = (user as { totpSecret?: string }).totpSecret;
-            if (!secret || !code || !authenticator.check(code, secret)) {
-              logger.warn("Invalid login attempt");
-              return null;
-            }
-          }
-
-          // If legacy suffix was detected, persist migration: clear suffix and set flag
-          if (legacyReset) {
-            try {
-              await db.user.update({
-                where: { id: user.id },
-                data: {
-                  password: user.password.slice(0, -".CHANGEME".length),
-                  mustChangePassword: true,
-                  lastLogin: new Date(),
-                },
-              });
-            } catch {
-              // ignore migration failure; session will still carry mustChangePassword
-            }
-          } else {
-            // Update last login timestamp on successful auth
-            await db.user.update({
-              where: { id: user.id },
-              data: { lastLogin: new Date() },
-            });
-          }
-
-          // Return user object (password excluded)
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            role: user.role,
-            mustChangePassword: legacyReset || (user as { mustChangePassword?: boolean }).mustChangePassword === true,
-          };
-        } catch (error) {
-          const hasMessage = (e: unknown): e is { message: string } =>
-            typeof e === "object" && e !== null && "message" in e && typeof (e as { message?: unknown }).message === "string";
-          const logMessage = hasMessage(error) ? error.message : String(error);
-          logger.error({ event: "auth.login_failed", email: attemptedEmail, ip }, `Login failed: ${logMessage}`);
-          return null;
-        }
-      },
-    }),
+    loginLinkProvider,
+    ...(passkeysEnabled ? [Passkey({})] : []),
     // Conditionally register Google provider when env credentials are available.
     // Actual enablement is enforced via DB in the signIn callback/UI.
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -207,7 +200,7 @@ export const authConfig = {
       : []),
   ],
   session: {
-    strategy: "jwt", // Required for credentials provider
+    strategy: "jwt",
     maxAge: 24 * 60 * 60, // 24 hours
   },
   jwt: {
@@ -217,81 +210,68 @@ export const authConfig = {
   callbacks: {
     // Enforce provider toggles and OAuth user existence rules
     signIn: async ({ account, user }) => {
-      // Default allow when no provider context (tests or system calls)
       if (!account) return true;
 
       const provider = account.provider;
 
-      // Credentials: enforce env toggle
-      if (provider === "credentials") {
-        return env.AUTH_CREDENTIALS_ENABLED !== "false";
+      if (provider === LOGIN_LINK_PROVIDER_ID) {
+        const emailAddr = (user as { email?: string | null } | undefined)?.email?.toLowerCase();
+        if (!emailAddr) return false;
+        try {
+          const existing = await db.user.findUnique({ where: { email: emailAddr } });
+          return Boolean(existing);
+        } catch (error) {
+          logger.warn({ event: "auth.login_link_validation_failed", email: emailAddr, error }, "Blocked login-link sign-in due to validation error");
+          return false;
+        }
       }
 
-      // Google: require pre-provisioned user by email (no auto-create)
-        if (provider === "google") {
-          const emailAddr = (user as { email?: string | null } | undefined)?.email ?? undefined;
-          if (!emailAddr) return false;
-          try {
-            const existing = await db.user.findUnique({ where: { email: emailAddr } });
-            return Boolean(existing);
-          } catch {
-          logger.warn({ event: "auth.oauth_validation_error" }, "Blocked OAuth sign-in due to validation error");
-            return false;
-          }
+      if (provider === "passkey") {
+        if (!passkeysEnabled) {
+          logger.warn({ event: "auth.passkey_disabled" }, "Blocked passkey sign-in because provider is disabled");
+          return false;
         }
+        const resolved = await resolveUserIdentity(user as { id?: string | null; email?: string | null });
+        return Boolean(resolved);
+      }
+
+      if (provider === "google") {
+        const emailAddr = (user as { email?: string | null } | undefined)?.email?.toLowerCase();
+        if (!emailAddr) return false;
+        try {
+          const existing = await db.user.findUnique({ where: { email: emailAddr } });
+          return Boolean(existing);
+        } catch (error) {
+          logger.warn(
+            { event: "auth.oauth_validation_error", provider, error },
+            "Blocked OAuth sign-in due to validation error",
+          );
+          return false;
+        }
+      }
 
       // Unknown providers blocked by default
       return false;
     },
     session: async ({ session, token }) => {
       const t = token as AugmentedJWT;
-      // Derive session fields from token without DB calls (works in middleware/edge)
       session.user = {
         ...session.user,
         id: token.sub ?? (session.user?.id as string | undefined),
         role: t.role ?? (session.user as { role?: UserRole }).role!,
-        mustChangePassword: t.mustChangePassword === true,
       } as typeof session.user;
       return session;
     },
-    jwt: async ({ token, user, account }) => {
-      // On sign-in, persist id and role in the token
+    jwt: async ({ token, user }) => {
       if (user) {
-        const t = token as AugmentedJWT;
-        // Credentials sign-in already provided role/id in user
-        if (!account || account.provider === "credentials") {
-          const u = user as { id: string; role: UserRole; mustChangePassword?: boolean };
-          if (u?.id && u?.role) {
-            t.sub = u.id;
-            t.role = u.role;
-            t.mustChangePassword = u.mustChangePassword === true;
-            return t;
-          }
+        const resolved = await resolveUserIdentity(user as { id?: string | null; email?: string | null; role?: UserRole });
+        if (resolved) {
+          const t = token as AugmentedJWT;
+          t.sub = resolved.id;
+          t.role = resolved.role;
+          return t;
         }
-
-        // OAuth sign-in: look up user by email to populate token
-        if (account?.provider === "google") {
-          const emailAddr = (user as { email?: string }).email;
-          if (!emailAddr) return token as AugmentedJWT;
-          try {
-            const existing = await db.user.findUnique({ where: { email: emailAddr } });
-            if (existing) {
-              const t = token as AugmentedJWT;
-              t.sub = existing.id;
-              t.role = existing.role;
-              t.mustChangePassword = false;
-              return t;
-            }
-          } catch {
-            // Ignore lookup errors; fall through to default
-          }
-        }
-        return token as AugmentedJWT;
       }
-
-      // For existing sessions, ensure the user still exists.
-      // If not, return null to clear the JWT and force a clean login.
-      // Optionally, could validate existence; skip DB calls to stay edge-friendly
       return token as AugmentedJWT;
     },
   },
@@ -304,14 +284,20 @@ export const authConfig = {
         headerBag = undefined;
       }
 
-      const actor = user as { id?: string | null; email?: string | null } | null | undefined;
+      if (user?.id) {
+        try {
+          await db.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
+        } catch (error) {
+          logger.warn({ event: "auth.last_login_update_failed", userId: user.id, error }, "Failed to update last login timestamp");
+        }
+      }
 
       logger.info(
         auditEvent(
           { headers: headerBag },
           "auth.sign_in",
           { provider: account?.provider, isNewUser },
-          { actor },
+          { actor: user as { id?: string | null; email?: string | null } | null | undefined },
         ),
         "User signed in",
       );

@@ -27,10 +27,16 @@ vi.mock("@/server/db", () => ({
   },
 }));
 
-const mockDb = vi.mocked(await import("@/server/db")).db;
+const { db } = await import("@/server/db");
+const mockDb = vi.mocked(db, true);
 
 const createCaller = (role: UserRole) => {
-  const ctx = { session: { user: { id: "u1", role } }, db: mockDb };
+  const ctx = {
+    headers: new Headers(),
+    session: { user: { id: "u1", role }, expires: "2099-01-01" },
+    db: mockDb,
+    requestId: "database-restore-test",
+  };
   return databaseRouter.createCaller(ctx);
 };
 
