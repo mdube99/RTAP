@@ -1,8 +1,6 @@
-name: Build and Push Docker Image
+name: Publish Docker Image
 
 on:
-  pull_request:
-    branches: [ main ]
   release:
     # Publishing a release for an existing tag (via the GitHub UI) does not
     # emit a push event, so include this trigger to build the image when a
@@ -10,25 +8,8 @@ on:
     types: [ published ]
 
 jobs:
-  docker-build-pr:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image (no push)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deploy/docker/Dockerfile
-          push: false
-
-  docker:
-    if: github.event_name == 'release'
+  publish:
+    name: Publish Docker Image to GHCR
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,7 +36,7 @@ jobs:
           tags: |
             type=ref,event=tag
 
-      - name: Build and push
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
