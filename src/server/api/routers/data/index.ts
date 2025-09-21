@@ -1,9 +1,23 @@
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, adminProcedure } from "@/server/api/trpc";
 import { logger } from "@/server/logger";
+
+const clearUserData = async (tx: Prisma.TransactionClient) => {
+  await tx.outcome.deleteMany();
+  await tx.technique.deleteMany();
+  await tx.attackFlowLayout.deleteMany();
+  await tx.operation.deleteMany();
+
+  await tx.tool.deleteMany();
+  await tx.toolCategory.deleteMany();
+  await tx.logSource.deleteMany();
+  await tx.tag.deleteMany();
+  await tx.crownJewel.deleteMany();
+  await tx.threatActor.deleteMany();
+};
 
 const threatActorSchema = z.object({
   id: z.string().optional(),
@@ -236,7 +250,7 @@ export const dataRouter = createTRPCRouter({
   }),
 
   restore: adminProcedure
-    .input(z.object({ backupData: z.string(), clearBefore: z.boolean().default(true) }))
+    .input(z.object({ backupData: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const db = ctx.db;
 
@@ -262,19 +276,7 @@ export const dataRouter = createTRPCRouter({
 
       try {
         await db.$transaction(async (tx: Prisma.TransactionClient) => {
-          if (input.clearBefore) {
-            await tx.outcome.deleteMany();
-            await tx.technique.deleteMany();
-            await tx.attackFlowLayout.deleteMany();
-            await tx.operation.deleteMany();
-
-            await tx.tool.deleteMany();
-            await tx.toolCategory.deleteMany();
-            await tx.logSource.deleteMany();
-            await tx.tag.deleteMany();
-            await tx.crownJewel.deleteMany();
-            await tx.threatActor.deleteMany();
-          }
+          await clearUserData(tx);
 
           if (payload.threatActors?.length) {
             await tx.threatActor.createMany({ data: payload.threatActors });
@@ -347,54 +349,20 @@ export const dataRouter = createTRPCRouter({
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error({ event: "data.restore_failed", message }, "Restore error");
-
-        if (
-          !input.clearBefore &&
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          (error.code === "P2002" || error.code === "P2003")
-        ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              'Import failed because existing operations or taxonomy conflict with the backup. Select "Clear existing data before import" and try again.',
-          });
-        }
-
         throw new TRPCError({ code: "BAD_REQUEST", message: "Failed to restore backup" });
       }
     }),
 
-  clearData: adminProcedure
-    .input(z.object({ clearOperations: z.boolean(), clearTaxonomy: z.boolean() }))
-    .mutation(async ({ ctx, input }) => {
-      const db = ctx.db;
+  clearData: adminProcedure.mutation(async ({ ctx }) => {
+    const db = ctx.db;
 
-      try {
-        await db.$transaction(async (tx: Prisma.TransactionClient) => {
-          const shouldClearOperations = input.clearOperations || input.clearTaxonomy;
-
-          if (shouldClearOperations) {
-            await tx.outcome.deleteMany();
-            await tx.technique.deleteMany();
-            await tx.attackFlowLayout.deleteMany();
-            await tx.operation.deleteMany();
-          }
-
-          if (input.clearTaxonomy) {
-            await tx.tool.deleteMany();
-            await tx.toolCategory.deleteMany();
-            await tx.logSource.deleteMany();
-            await tx.tag.deleteMany();
-            await tx.crownJewel.deleteMany();
-            await tx.threatActor.deleteMany();
-          }
-        });
-
-        return { success: true };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error({ event: "data.clear_failed", message }, "Clear data error");
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to clear data" });
-      }
-    }),
+    try {
+      await db.$transaction(clearUserData);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error({ event: "data.clear_failed", message }, "Clear data error");
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to clear data" });
+    }
+  }),
 });

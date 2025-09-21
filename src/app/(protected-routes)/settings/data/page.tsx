@@ -11,14 +11,8 @@ import { api } from "@/trpc/react";
 
 export default function DataSettingsPage() {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
-  const [clearBeforeImport, setClearBeforeImport] = useState(true);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [clearOperations, setClearOperations] = useState(false);
-  const [clearTaxonomy, setClearTaxonomy] = useState(false);
-  const [pendingClearOptions, setPendingClearOptions] = useState<{ clearOperations: boolean; clearTaxonomy: boolean } | null>(
-    null,
-  );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
@@ -67,9 +61,10 @@ export default function DataSettingsPage() {
       void refetchStats();
       void utils.invalidate();
       setShowClearConfirm(false);
-      setClearOperations(false);
-      setClearTaxonomy(false);
-      setPendingClearOptions(null);
+      setToastMessage("Operations and taxonomy data have been cleared.");
+    },
+    onError: () => {
+      setShowClearConfirm(false);
     },
   });
 
@@ -79,15 +74,10 @@ export default function DataSettingsPage() {
     try {
       const text = await restoreFile.text();
       setRestoreError(null);
-      restoreMutation.mutate({ backupData: text, clearBefore: clearBeforeImport });
+      restoreMutation.mutate({ backupData: text });
     } catch (error) {
       logger.error("Failed to read backup file", error);
     }
-  };
-
-  const handleClearData = () => {
-    if (!pendingClearOptions) return;
-    clearDataMutation.mutate(pendingClearOptions);
   };
 
   return (
@@ -101,15 +91,16 @@ export default function DataSettingsPage() {
           >
             <CheckCircle className="h-5 w-5 text-[var(--status-success-fg)]" aria-hidden />
             <div>
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">Import complete</p>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">Success</p>
               <p className="text-xs text-[var(--color-text-secondary)]">{toastMessage}</p>
             </div>
           </div>
         </div>
       )}
+
       <div>
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Data Management</h1>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
           Export, import, or clear operations and taxonomy data.
         </p>
       </div>
@@ -118,7 +109,7 @@ export default function DataSettingsPage() {
         <ConfirmModal
           open
           title="Import data from backup?"
-          description={`This will ${clearBeforeImport ? "replace existing data and " : ""}import operations and taxonomy from the selected backup. This action cannot be undone.`}
+          description="This will replace all existing operations and taxonomy data with the selected backup. This action cannot be undone."
           confirmLabel="Import"
           cancelLabel="Cancel"
           onConfirm={handleRestore}
@@ -132,18 +123,18 @@ export default function DataSettingsPage() {
           <CardTitle>Data Overview</CardTitle>
         </CardHeader>
         <CardContent>
-            {stats ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: "Operations", value: stats.operations },
-                  { label: "Techniques", value: stats.techniques },
-                  { label: "Outcomes", value: stats.outcomes },
-                  { label: "Threat Actors", value: stats.threatActors },
-                  { label: "Crown Jewels", value: stats.crownJewels },
-                  { label: "Tags", value: stats.tags },
-                  { label: "Tools", value: stats.tools },
-                  { label: "Log Sources", value: stats.logSources },
-                ].map(({ label, value }) => (
+          {stats ? (
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              {[
+                { label: "Operations", value: stats.operations },
+                { label: "Techniques", value: stats.techniques },
+                { label: "Outcomes", value: stats.outcomes },
+                { label: "Threat Actors", value: stats.threatActors },
+                { label: "Crown Jewels", value: stats.crownJewels },
+                { label: "Tags", value: stats.tags },
+                { label: "Tools", value: stats.tools },
+                { label: "Log Sources", value: stats.logSources },
+              ].map(({ label, value }) => (
                 <div key={label} className="text-center">
                   <div className="text-2xl font-bold text-[var(--color-accent)]">{value}</div>
                   <div className="text-sm text-[var(--color-text-secondary)]">{label}</div>
@@ -151,19 +142,19 @@ export default function DataSettingsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-4 text-[var(--color-text-secondary)]">Loading statistics...</div>
+            <div className="py-4 text-center text-[var(--color-text-secondary)]">Loading statistics...</div>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Export Data</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-[var(--color-text-secondary)]">
-              Download a JSON file containing operations and taxonomy.
+              Download a JSON file containing all operations and taxonomy records.
             </p>
             <Button
               variant="secondary"
@@ -171,7 +162,7 @@ export default function DataSettingsPage() {
               onClick={() => backupMutation.mutate()}
               disabled={backupMutation.isPending}
             >
-              {backupMutation.isPending ? "Preparing Export..." : "Download Data"}
+              {backupMutation.isPending ? "Preparing export..." : "Download data"}
             </Button>
           </CardContent>
         </Card>
@@ -182,7 +173,7 @@ export default function DataSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-[var(--color-text-secondary)]">
-              Import operations and taxonomy from a previously exported file.
+              Import a backup to replace the current operations and taxonomy data set.
             </p>
             <input
               type="file"
@@ -191,30 +182,15 @@ export default function DataSettingsPage() {
                 setRestoreFile(event.target.files?.[0] ?? null);
                 setRestoreError(null);
               }}
-              className="w-full text-[var(--color-text-primary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] p-2"
+              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-text-primary)]"
             />
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="clear-before-import"
-                checked={clearBeforeImport}
-                onChange={(event) => {
-                  setClearBeforeImport(event.target.checked);
-                  setRestoreError(null);
-                }}
-                className="rounded border-[var(--color-border)]"
-              />
-              <label htmlFor="clear-before-import" className="text-sm text-[var(--color-text-primary)]">
-                Clear existing data before import
-              </label>
-            </div>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setShowRestoreConfirm(true)}
-              disabled={!restoreFile}
+              disabled={!restoreFile || restoreMutation.isPending}
             >
-              {restoreMutation.isPending ? "Importing..." : "Import Data"}
+              {restoreMutation.isPending ? "Importing..." : "Import data"}
             </Button>
             {restoreError && <div className="text-sm text-[var(--color-error)]">{restoreError}</div>}
           </CardContent>
@@ -227,85 +203,26 @@ export default function DataSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-[var(--color-text-secondary)]">
-            Permanently delete selected data sets.
+            Permanently delete all operations and taxonomy data. This cannot be undone.
           </p>
-          <div className="space-y-3">
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="clear-operations"
-                checked={clearOperations}
-                onChange={(event) => setClearOperations(event.target.checked)}
-                className="rounded border-[var(--color-border)]"
-                disabled={clearTaxonomy}
-              />
-              <label htmlFor="clear-operations" className="text-sm text-[var(--color-text-primary)]">
-                Clear operations data
-              </label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="clear-taxonomy"
-                checked={clearTaxonomy}
-                onChange={(event) => {
-                  const checked = event.target.checked;
-                  setClearTaxonomy(checked);
-                  if (checked) {
-                    setClearOperations(true);
-                  }
-                }}
-                className="rounded border-[var(--color-border)]"
-              />
-              <label htmlFor="clear-taxonomy" className="text-sm text-[var(--color-text-primary)]">
-                Clear taxonomy data
-              </label>
-            </div>
-            {clearTaxonomy ? (
-              <p className="text-xs text-[var(--color-text-secondary)] ml-8">
-                Taxonomy depends on operations. Clearing taxonomy will also remove all operations.
-              </p>
-            ) : (
-              <p className="text-xs text-[var(--color-text-secondary)] ml-8">
-                Operations can be cleared independently. Selecting taxonomy will include operations automatically.
-              </p>
-            )}
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => {
-                const operationsToClear = clearOperations || clearTaxonomy;
-                setPendingClearOptions({ clearOperations: operationsToClear, clearTaxonomy });
-                setShowClearConfirm(true);
-              }}
-              disabled={!clearOperations && !clearTaxonomy}
-            >
-              Clear selected data
-            </Button>
-            {clearDataMutation.error && (
-              <div className="text-sm text-[var(--color-error)]">{clearDataMutation.error.message}</div>
-            )}
-          </div>
+          <Button variant="danger" size="sm" onClick={() => setShowClearConfirm(true)} disabled={clearDataMutation.isPending}>
+            {clearDataMutation.isPending ? "Clearing..." : "Clear all data"}
+          </Button>
+          {clearDataMutation.error && (
+            <div className="text-sm text-[var(--color-error)]">{clearDataMutation.error.message}</div>
+          )}
         </CardContent>
       </Card>
 
       {showClearConfirm && (
         <ConfirmModal
           open
-          title="Delete selected data?"
-          description={`This will permanently delete ${[
-            pendingClearOptions?.clearOperations ? "operations" : null,
-            pendingClearOptions?.clearTaxonomy ? "taxonomy" : null,
-          ]
-            .filter(Boolean)
-            .join(" and ")}. This action cannot be undone.`}
+          title="Delete all data?"
+          description="This will permanently delete all operations and taxonomy data. This action cannot be undone."
           confirmLabel="Delete"
           cancelLabel="Cancel"
-          onConfirm={handleClearData}
-          onCancel={() => {
-            setShowClearConfirm(false);
-            setPendingClearOptions(null);
-          }}
+          onConfirm={() => clearDataMutation.mutate()}
+          onCancel={() => setShowClearConfirm(false)}
           loading={clearDataMutation.isPending}
         />
       )}

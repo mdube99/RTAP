@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Prisma, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 
 import { dataRouter } from "@/server/api/routers/data";
 
@@ -70,7 +70,7 @@ describe("Data Restore", () => {
 
     const backup = JSON.stringify({ version: "2.0", timestamp: new Date().toISOString(), data: payload });
 
-    await caller.restore({ backupData: backup, clearBefore: true });
+    await caller.restore({ backupData: backup });
 
     expect(mockDb.operation.deleteMany).toHaveBeenCalled();
     expect(mockDb.tool.deleteMany).toHaveBeenCalled();
@@ -85,50 +85,15 @@ describe("Data Restore", () => {
     });
   });
 
-  it("skips clearing when clearBefore is false", async () => {
-    const caller = createCaller(UserRole.ADMIN);
-    mockDb.threatActor.update.mockResolvedValue({});
-
-    const payload = { threatActors: [], operations: [], techniques: [], outcomes: [], attackFlowLayouts: [] };
-    const backup = JSON.stringify({ version: "2.0", timestamp: new Date().toISOString(), data: payload });
-
-    await caller.restore({ backupData: backup, clearBefore: false });
-
-    expect(mockDb.operation.deleteMany).not.toHaveBeenCalled();
-    expect(mockDb.tool.deleteMany).not.toHaveBeenCalled();
-  });
-
   it("rejects invalid backup data", async () => {
     const caller = createCaller(UserRole.ADMIN);
 
-    await expect(caller.restore({ backupData: "not-json", clearBefore: true })).rejects.toThrow("Invalid backup file");
+    await expect(caller.restore({ backupData: "not-json" })).rejects.toThrow("Invalid backup file");
   });
 
-  it("suggests clearing existing data when restore conflicts", async () => {
-    const caller = createCaller(UserRole.ADMIN);
+  it("rejects non-admin access", async () => {
+    const caller = createCaller(UserRole.OPERATOR);
 
-    const prismaError = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
-      code: "P2002",
-      clientVersion: "5.15.0",
-    });
-
-    mockDb.operation.create.mockRejectedValueOnce(prismaError);
-
-    const payload = {
-      operations: [
-        {
-          id: 1,
-          name: "Op1",
-          description: "Existing",
-          createdById: "u1",
-        },
-      ],
-    };
-
-    const backup = JSON.stringify({ version: "2.0", timestamp: new Date().toISOString(), data: payload });
-
-    await expect(caller.restore({ backupData: backup, clearBefore: false })).rejects.toThrow(
-      'Import failed because existing operations or taxonomy conflict with the backup. Select "Clear existing data before import" and try again.',
-    );
+    await expect(caller.restore({ backupData: "{}" })).rejects.toThrow("Admin access required");
   });
 });

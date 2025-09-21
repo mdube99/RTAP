@@ -103,22 +103,10 @@ describe("Data Router", () => {
       });
     });
 
-    it("clears operations data", async () => {
+    it("clears operations and taxonomy data together", async () => {
       const caller = createCaller(UserRole.ADMIN);
 
-      await caller.clearData({ clearOperations: true, clearTaxonomy: false });
-
-      expect(mockDb.outcome.deleteMany).toHaveBeenCalled();
-      expect(mockDb.technique.deleteMany).toHaveBeenCalled();
-      expect(mockDb.attackFlowLayout.deleteMany).toHaveBeenCalled();
-      expect(mockDb.operation.deleteMany).toHaveBeenCalled();
-      expect(mockDb.tool.deleteMany).not.toHaveBeenCalled();
-    });
-
-    it("clears taxonomy data", async () => {
-      const caller = createCaller(UserRole.ADMIN);
-
-      await caller.clearData({ clearOperations: false, clearTaxonomy: true });
+      await caller.clearData();
 
       expect(mockDb.outcome.deleteMany).toHaveBeenCalled();
       expect(mockDb.technique.deleteMany).toHaveBeenCalled();
@@ -135,9 +123,7 @@ describe("Data Router", () => {
     it("rejects non-admin access", async () => {
       const caller = createCaller(UserRole.VIEWER);
 
-      await expect(caller.clearData({ clearOperations: true, clearTaxonomy: false })).rejects.toThrow(
-        "Admin access required",
-      );
+      await expect(caller.clearData()).rejects.toThrow("Admin access required");
     });
   });
 });
