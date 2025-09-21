@@ -147,7 +147,7 @@ export default function DataSettingsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Export Data</CardTitle>
@@ -195,24 +195,29 @@ export default function DataSettingsPage() {
             {restoreError && <div className="text-sm text-[var(--color-error)]">{restoreError}</div>}
           </CardContent>
         </Card>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-[var(--color-error)]">⚠️ Clear Data</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            Permanently delete all operations and taxonomy data. This cannot be undone.
-          </p>
-          <Button variant="danger" size="sm" onClick={() => setShowClearConfirm(true)} disabled={clearDataMutation.isPending}>
-            {clearDataMutation.isPending ? "Clearing..." : "Clear all data"}
-          </Button>
-          {clearDataMutation.error && (
-            <div className="text-sm text-[var(--color-error)]">{clearDataMutation.error.message}</div>
-          )}
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-[var(--color-error)]">⚠️ Clear Data</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Permanently delete all operations and taxonomy data. This cannot be undone.
+            </p>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowClearConfirm(true)}
+              disabled={clearDataMutation.isPending}
+            >
+              {clearDataMutation.isPending ? "Clearing..." : "Clear all data"}
+            </Button>
+            {clearDataMutation.error && (
+              <div className="text-sm text-[var(--color-error)]">{clearDataMutation.error.message}</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {showClearConfirm && (
         <ConfirmModal
