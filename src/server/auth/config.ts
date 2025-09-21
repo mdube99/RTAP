@@ -175,6 +175,8 @@ export const authConfig = {
       logger.error(payload, "Auth.js error");
     },
     warn(code) {
+      if (code === "experimental-webauthn") return;
+
       logger.warn({ event: "authjs.warn", code }, "Auth.js warn");
     },
     debug(message, metadata) {
