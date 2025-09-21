@@ -3,6 +3,9 @@ name: Validate Docker Build
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   validate-docker-build:
     name: Build Docker Image (no push)
