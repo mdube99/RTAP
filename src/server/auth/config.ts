@@ -197,6 +197,9 @@ export const authConfig = {
           GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            // We trust the locally provisioned accounts and block unknown e-mails in the
+            // sign-in callback, so allow Auth.js to link Google users directly by e-mail.
+            allowDangerousEmailAccountLinking: true,
           }),
         ]
       : []),
@@ -241,8 +244,32 @@ export const authConfig = {
         const emailAddr = (user as { email?: string | null } | undefined)?.email?.toLowerCase();
         if (!emailAddr) return false;
         try {
-          const existing = await db.user.findUnique({ where: { email: emailAddr } });
-          return Boolean(existing);
+          const existing = await db.user.findUnique({
+            where: { email: emailAddr },
+            select: { id: true, emailVerified: true },
+          });
+          if (!existing) return false;
+
+          if (!existing.emailVerified) {
+            try {
+              await db.user.update({
+                where: { id: existing.id },
+                data: { emailVerified: new Date() },
+              });
+            } catch (updateError) {
+              logger.warn(
+                {
+                  event: "auth.oauth_email_verified_update_failed",
+                  provider,
+                  userId: existing.id,
+                  error: updateError,
+                },
+                "Failed to mark OAuth user as verified",
+              );
+            }
+          }
+
+          return true;
         } catch (error) {
           logger.warn(
             { event: "auth.oauth_validation_error", provider, error },
