@@ -187,10 +187,6 @@ export default function DataSettingsPage() {
             <p className="text-sm text-[var(--color-text-secondary)]">
               Import a backup to replace the current operations and taxonomy data set.
             </p>
-            <div className="p-3 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded text-sm text-[var(--color-warning)]">
-              Operations that were restricted to groups will be made visible to everyone after the import because group
-              assignments are not restored.
-            </div>
             <input
               ref={fileInputRef}
               type="file"
