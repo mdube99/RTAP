@@ -1,6 +1,6 @@
 # TTPx
 
-_This is an experiment in creating something useful with AI coding agents. It is a personal hobby project, with no commitments and no promises._
+_This is an experiment in creating something useful with AI coding agents. The initial version was made with Claude Code, but it has since been largely re-written by GPT-5 Codex. It is a personal hobby project, with no commitments and no promises._
 
 TTPx is a platform for internal Red Teams to plan and analyze their operations. The features and functionality are designed with their specific needs in mind, such as:
 
