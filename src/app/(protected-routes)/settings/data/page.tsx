@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CheckCircle } from "lucide-react";
 
@@ -15,6 +15,14 @@ export default function DataSettingsPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const resetRestoreSelection = () => {
+    setRestoreFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -45,7 +53,7 @@ export default function DataSettingsPage() {
     onSuccess: () => {
       void refetchStats();
       void utils.invalidate();
-      setRestoreFile(null);
+      resetRestoreSelection();
       setShowRestoreConfirm(false);
       setToastMessage("Operations and taxonomy data have been imported.");
       setRestoreError(null);
@@ -53,6 +61,7 @@ export default function DataSettingsPage() {
     onError: (error) => {
       setShowRestoreConfirm(false);
       setRestoreError(error.message);
+      resetRestoreSelection();
     },
   });
 
@@ -109,11 +118,14 @@ export default function DataSettingsPage() {
         <ConfirmModal
           open
           title="Import data from backup?"
-          description="This will replace all existing operations and taxonomy data with the selected backup. This action cannot be undone."
+          description="This will replace all existing operations and taxonomy data with the selected backup. All operations will be made visible to every user because group assignments are not restored. This action cannot be undone."
           confirmLabel="Import"
           cancelLabel="Cancel"
           onConfirm={handleRestore}
-          onCancel={() => setShowRestoreConfirm(false)}
+          onCancel={() => {
+            resetRestoreSelection();
+            setShowRestoreConfirm(false);
+          }}
           loading={restoreMutation.isPending}
         />
       )}
@@ -175,20 +187,35 @@ export default function DataSettingsPage() {
             <p className="text-sm text-[var(--color-text-secondary)]">
               Import a backup to replace the current operations and taxonomy data set.
             </p>
+            <div className="p-3 bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded text-sm text-[var(--color-warning)]">
+              Operations that were restricted to groups will be made visible to everyone after the import because group
+              assignments are not restored.
+            </div>
             <input
+              ref={fileInputRef}
               type="file"
               accept=".json"
+              className="hidden"
               onChange={(event) => {
-                setRestoreFile(event.target.files?.[0] ?? null);
+                const file = event.target.files?.[0] ?? null;
+
+                if (!file) {
+                  resetRestoreSelection();
+                  setShowRestoreConfirm(false);
+                  return;
+                }
+
+                setRestoreFile(file);
                 setRestoreError(null);
+                setShowRestoreConfirm(true);
+                event.target.value = "";
               }}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-text-primary)]"
             />
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setShowRestoreConfirm(true)}
-              disabled={!restoreFile || restoreMutation.isPending}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={restoreMutation.isPending}
             >
               {restoreMutation.isPending ? "Importing..." : "Import data"}
             </Button>

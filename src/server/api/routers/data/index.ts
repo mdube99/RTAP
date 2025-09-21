@@ -298,12 +298,13 @@ export const dataRouter = createTRPCRouter({
           }
 
           for (const op of payload.operations ?? []) {
-            const { tags: opTags = [], crownJewels: opCrownJewels = [], visibility: opVisibility, ...operationFields } = op;
+            const { tags: opTags = [], crownJewels: opCrownJewels = [], ...operationFields } = op;
 
             await tx.operation.create({
               data: {
                 ...operationFields,
-                visibility: opVisibility ?? "EVERYONE",
+                // Access groups are not restored; default all operations to everyone-visible.
+                visibility: "EVERYONE",
                 tags: opTags.length ? { connect: opTags.map(({ id }) => ({ id })) } : undefined,
                 crownJewels: opCrownJewels.length ? { connect: opCrownJewels.map(({ id }) => ({ id })) } : undefined,
               },
