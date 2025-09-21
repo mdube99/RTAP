@@ -86,7 +86,7 @@ const isAdapter = (value: unknown): value is Adapter => {
   });
 };
 
-const prismaAdapter = (() => {
+const prismaAdapter: Adapter = (() => {
   if (!isAdapterFactory(PrismaAdapter)) {
     throw new Error("Invalid Prisma adapter export");
   }
