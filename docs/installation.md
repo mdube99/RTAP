@@ -43,38 +43,46 @@ docker exec ttpx-web npx tsx scripts/demo-data.ts
 
 # If not using SSO, generate 1-time login URL to set up your first passkey
 docker exec ttpx-web npm run generate-admin-login
-
-# Destroy all data and start from scratch - WARNING YOU WILL LOSE YOUR DB
-docker compose down
-docker system prune -a --volumes
 ```
 
 ## Authentication
 
-There is no support for traditional passwords. If you are using SSO, the `INITIAL_ADMIN_EMAIL` is created as a local account at initialization and should be accessible to login via your SSO provider.
+### How it Works
 
-If not using SSO, you need to generate a 1-time-login link for that same `INITIAL_ADMIN_EMAIL` user. This will allow you to login so you can add a passkey to your account. From there, continue logging in with your passkey. The `npm run generate-admin-login` command can be re-run in emergencies where you lost your admin passkey.
+Let's be the change we want to see in the world. There is no support for passwords! Currently supported options are:
 
-When creating new users in the UI, you will be presented with a similar 1-time-login link for them. They will need to register a passkey when they first login.
+- Passkeys
+- Google OAuth (SSO)
 
-## Logging
+The platform uses NextAuth, so adding additional SSO providers would be pretty easy.
 
-- Server logs emit to stdout/stderr (structured JSON in production, pretty in development). Rely on Docker and the host OS for collection and rotation.
-- Log level defaults: `debug` in development, `info` in production. Override with `LOG_LEVEL`.
+**Admin bootstrap:**
 
-## Single Sign-On (SSO)
+- On first run, the application creates an admin account using `INITIAL_ADMIN_EMAIL` from your `.env`.
+- If using Google SSO, just sign in with the matching Google account.
+- If using passkeys, you must generate a one-time login URL (`npm run generate-admin-login`) and register a passkey for that account.
 
-SSO is enabled through environment variables. Users must be provisioned ahead of time; they are **not** auto-created on first SSO login.
+**Ongoing user management:**
 
-For a pure-SSO setup, set `INITIAL_ADMIN_EMAIL` to a value from the SSO provider. Passkeys can be enabled alongside SSO when desired.
+- Once logged in as admin, you can create additional users.
+- Google SSO users: just log in with the matching Google email.
+- Passkey users: must receive a one-time login URL from the admin, then register a passkey.
 
-Environment variables:
+**Recovery:**
+
+- If locked out, re-run `npm run generate-admin-login` to obtain another single-use login URL for the initial admin account.
+
+Accounts must be created inside the platform; SSO logins for unknown emails will be rejected.
+
+### Configuration Info
+
+Authentication options are configured in your `.env` file. The names are slightly different depending on whether you are doing local development or docker compose - the correct values are provided in the appropriate `.env-example` files.
 
 ```
-# Toggle passkey provider (default: disabled)
+# Enable or disable passkey authentication
 AUTH_PASSKEYS_ENABLED=true
 
-# Register Google provider when present (optional)
+# Configuring the follow values will enable Google SSO
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
@@ -83,3 +91,8 @@ For Google, configure the following in the Google Cloud console:
 
 - Authorized JavaScript origins: matches `AUTH_URL` from `.env`.
 - Authorized redirect URIs: `AUTH_URL` + `/api/auth/callback/google`.
+
+## Logging
+
+- Server logs emit to stdout/stderr (structured JSON in production, pretty in development). Rely on Docker and the host OS for collection and rotation.
+- Log level defaults: `debug` in development, `info` in production. Override with `LOG_LEVEL`.
