@@ -24,9 +24,13 @@ Development Docs:
 
 ## Contributing
 
-Not currently accepting pull requests - still just an experiment.
+This is still an early experiment, and I'm not ready for big contributions. If you have an idea, please open an issue first. I'd like to play around with it a bit more before deciding if it's useful and what shape it should take.
 
 See [AGENTS.md](AGENTS.md) for engineering standards.
+
+## Security
+
+If you see something scary, please open an issue to let me know.
 
 ## Tech Stack
 
