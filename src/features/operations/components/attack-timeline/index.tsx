@@ -16,11 +16,9 @@ import { CalendarClock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExportToPngButton } from "@features/shared/export";
 import { formatDate, formatMonthYear } from "@/lib/formatDate";
-import { OutcomeStatus, OutcomeType } from "@prisma/client";
 import { AttackTimelineTooltip } from "./attack-timeline-tooltip";
 import type {
   Operation,
-  OutcomeTimelinePoint,
   TechniqueScatterPoint,
   TechniqueTimelineDatum,
   Technique,
@@ -66,32 +64,6 @@ const endDot: ScatterCustomizedShape = (props: unknown) => {
   );
 };
 
-const toneColorMap: Record<"success" | "error" | "warn" | "info", string> = {
-  success: "var(--status-success-fg)",
-  error: "var(--status-error-fg)",
-  warn: "var(--status-warn-fg)",
-  info: "var(--status-info-fg)",
-};
-
-const getOutcomeTone = (status: OutcomeStatus): keyof typeof toneColorMap => {
-  if (status === OutcomeStatus.NOT_APPLICABLE) return "warn";
-  if (status === OutcomeStatus.MISSED) return "error";
-  if (
-    status === OutcomeStatus.DETECTED ||
-    status === OutcomeStatus.PREVENTED ||
-    status === OutcomeStatus.ATTRIBUTED
-  ) {
-    return "success";
-  }
-  return "info";
-};
-
-const hasTooltipType = (value: unknown): value is { tooltipType?: unknown } =>
-  typeof value === "object" && value !== null && "tooltipType" in value;
-
-const isOutcomePoint = (value: unknown): value is OutcomeTimelinePoint =>
-  hasTooltipType(value) && value.tooltipType === "outcome";
-
 const isScatterPointWithPayload = (
   value: unknown,
 ): value is ScatterPointItem & { payload?: unknown } => {
@@ -103,7 +75,25 @@ const isScatterPointWithPayload = (
   return typeof candidate.cx === "number" && typeof candidate.cy === "number";
 };
 
-const outcomeShape: ScatterCustomizedShape = (props: unknown) => {
+const toSafeTimestamp = (value: Date | string | null | undefined) => {
+  if (!value) return null;
+  const timestamp = typeof value === "string" ? new Date(value).getTime() : value.getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const getExecutionStatusColor = (
+  executedSuccessfully: boolean | null | undefined,
+): string => {
+  if (executedSuccessfully === true) {
+    return "var(--status-success-fg)";
+  }
+  if (executedSuccessfully === false) {
+    return "var(--status-error-fg)";
+  }
+  return "var(--status-warn-fg)";
+};
+
+const executionOutcomeShape: ScatterCustomizedShape = (props: unknown) => {
   if (!isScatterPointWithPayload(props)) {
     return <></>;
   }
@@ -111,48 +101,17 @@ const outcomeShape: ScatterCustomizedShape = (props: unknown) => {
   const cx = props.cx!;
   const cy = props.cy!;
   const payload = (props as { payload?: unknown }).payload;
-  if (!isOutcomePoint(payload)) {
+  if (!payload || typeof payload !== "object") {
     return <></>;
   }
 
-  const tone = getOutcomeTone(payload.status);
-  const fill = toneColorMap[tone];
-  const stroke = "var(--color-surface)";
-  const size = 7;
+  const executedSuccessfully = (payload as { executedSuccessfully?: boolean | null | undefined })
+    .executedSuccessfully;
+  const fill = getExecutionStatusColor(executedSuccessfully);
 
-  if (payload.type === OutcomeType.DETECTION) {
-    return <circle cx={cx} cy={cy} r={size} fill={fill} stroke={stroke} strokeWidth={2} />;
-  }
-
-  if (payload.type === OutcomeType.PREVENTION) {
-    return (
-      <rect
-        x={cx - size}
-        y={cy - size}
-        width={size * 2}
-        height={size * 2}
-        rx={2}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={2}
-      />
-    );
-  }
-
-  const points = [
-    `${cx},${cy - size}`,
-    `${cx + size},${cy}`,
-    `${cx},${cy + size}`,
-    `${cx - size},${cy}`,
-  ].join(" ");
-
-  return <polygon points={points} fill={fill} stroke={stroke} strokeWidth={2} />;
-};
-
-const toSafeTimestamp = (value: Date | string | null | undefined) => {
-  if (!value) return null;
-  const timestamp = typeof value === "string" ? new Date(value).getTime() : value.getTime();
-  return Number.isFinite(timestamp) ? timestamp : null;
+  return (
+    <circle cx={cx} cy={cy} r={5} fill={fill} stroke="var(--color-surface)" strokeWidth={2} />
+  );
 };
 
 const buildTechniqueLabel = (technique: Technique) => {
@@ -168,35 +127,30 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
     chartData,
     startPoints,
     endPoints,
-    outcomePoints,
+    executionPoints,
     domain,
     baseTimestamp,
     chartHeight,
   } = useMemo(() => {
     const candidates: TechniqueTimelineDatum[] = [];
+    let earliest: number | null = null;
+    let latest: number | null = null;
 
     for (const technique of operation.techniques) {
       const startTime = toSafeTimestamp(technique.startTime);
       const endTime = toSafeTimestamp(technique.endTime);
       const createdAt = toSafeTimestamp(technique.createdAt);
-      const outcomeTimes = technique.outcomes
-        .map((outcome) => toSafeTimestamp(outcome.detectionTime))
-        .filter((value): value is number => value != null);
 
-      const hasTimelineData = startTime != null || endTime != null || outcomeTimes.length > 0;
-      if (!hasTimelineData) {
+      const startTimestamp = startTime ?? createdAt ?? endTime;
+      if (startTimestamp == null) {
         continue;
       }
 
-      const startCandidates = [startTime, createdAt, ...outcomeTimes].filter(
-        (value): value is number => value != null,
-      );
+      const safeEnd = endTime != null && endTime > startTimestamp ? endTime : startTimestamp;
 
-      if (startCandidates.length === 0) {
-        continue;
-      }
+      earliest = earliest == null ? startTimestamp : Math.min(earliest, startTimestamp);
+      latest = latest == null ? safeEnd : Math.max(latest, safeEnd);
 
-      const startTimestamp = startTime ?? Math.min(...startCandidates);
       const techniqueName = technique.mitreSubTechnique?.name ?? technique.mitreTechnique?.name ?? "Custom Technique";
       const tacticName = technique.mitreTechnique?.tactic?.name ?? null;
       const label = buildTechniqueLabel(technique);
@@ -209,7 +163,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
         startDate: new Date(startTimestamp).toISOString(),
         endDate: endTime != null ? new Date(endTime).toISOString() : null,
         startTimestamp,
-        endTimestamp: endTime,
+        endTimestamp: endTime ?? null,
         executedSuccessfully: technique.executedSuccessfully,
         outcomes: technique.outcomes,
         offset: 0,
@@ -218,33 +172,35 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
       });
     }
 
-    if (candidates.length === 0) {
+    if (candidates.length === 0 || earliest == null || latest == null) {
       const now = Date.now();
       return {
         chartData: [] as TechniqueTimelineDatum[],
         startPoints: [] as TechniqueScatterPoint[],
         endPoints: [] as TechniqueScatterPoint[],
-        outcomePoints: [] as OutcomeTimelinePoint[],
+        executionPoints: [] as TechniqueScatterPoint[],
         domain: [0, 1] as [number, number],
         baseTimestamp: now,
         chartHeight: 320,
       };
     }
 
-    const sorted = candidates.sort((a, b) => a.startTimestamp - b.startTimestamp);
-    const baseTimestamp = sorted[0]!.startTimestamp;
-    let maxTimestamp = baseTimestamp;
+    const baseTimestamp = earliest;
+    let maxTimestamp = latest;
 
-    const chartData = sorted.map((item) => {
-      const safeEnd = item.endTimestamp ?? item.startTimestamp;
-      if (safeEnd > maxTimestamp) {
-        maxTimestamp = safeEnd;
+    const chartData = candidates.map((item) => {
+      const endTimestamp =
+        item.endTimestamp != null && item.endTimestamp >= item.startTimestamp
+          ? item.endTimestamp
+          : item.startTimestamp;
+      if (endTimestamp > maxTimestamp) {
+        maxTimestamp = endTimestamp;
       }
 
       return {
         ...item,
         offset: item.startTimestamp - baseTimestamp,
-        duration: Math.max(0, safeEnd - item.startTimestamp),
+        duration: Math.max(0, endTimestamp - item.startTimestamp),
       } satisfies TechniqueTimelineDatum;
     });
 
@@ -262,31 +218,14 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
         y: item.label,
       }));
 
-    const outcomePoints: OutcomeTimelinePoint[] = [];
-
-    for (const item of chartData) {
-      for (const outcome of item.outcomes) {
-        const outcomeTime = toSafeTimestamp(outcome.detectionTime);
-        const fallbackTime = outcomeTime ?? item.endTimestamp ?? item.startTimestamp;
-        const timestamp = fallbackTime;
-        if (timestamp > maxTimestamp) {
-          maxTimestamp = timestamp;
-        }
-        outcomePoints.push({
-          techniqueId: item.techniqueId,
-          label: item.label,
-          tacticName: item.tacticName,
-          type: outcome.type,
-          status: outcome.status,
-          timestamp,
-          detectionTime: outcomeTime != null ? new Date(outcomeTime).toISOString() : null,
-          usedFallbackTimestamp: outcomeTime == null,
-          tooltipType: "outcome",
-          x: timestamp - baseTimestamp,
-          y: item.label,
-        });
-      }
-    }
+    const executionPoints: TechniqueScatterPoint[] = chartData.map((item) => ({
+      ...item,
+      x:
+        (item.endTimestamp != null && item.endTimestamp >= item.startTimestamp
+          ? item.endTimestamp
+          : item.startTimestamp) - baseTimestamp,
+      y: item.label,
+    }));
 
     const span = Math.max(maxTimestamp - baseTimestamp, 24 * 60 * 60 * 1000);
     const chartHeight = Math.max(320, chartData.length * 56);
@@ -295,7 +234,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
       chartData,
       startPoints,
       endPoints,
-      outcomePoints,
+      executionPoints,
       domain: [0, span] as [number, number],
       baseTimestamp,
       chartHeight,
@@ -327,7 +266,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
             Attack Timeline
           </CardTitle>
           <CardDescription>
-            Visualizes technique execution windows and defensive outcomes for this operation.
+            Visualizes technique execution windows and execution results for this operation.
           </CardDescription>
         </div>
         <ExportToPngButton
@@ -371,7 +310,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
                 />
                 <Scatter data={startPoints} shape={startDot} />
                 <Scatter data={endPoints} shape={endDot} />
-                <Scatter data={outcomePoints} shape={outcomeShape} />
+                <Scatter data={executionPoints} shape={executionOutcomeShape} />
               </ComposedChart>
             </ResponsiveContainer>
             <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--color-text-muted)]">
@@ -381,40 +320,27 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
               </div>
               <div className="flex items-center gap-2">
                 <span className="flex h-3 w-3 items-center justify-center">
-                  <span className="h-3 w-3 rounded-full border border-[var(--color-surface)] bg-[var(--status-info-fg)]" />
+                  <span className="h-3 w-3 rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-accent)]" />
                 </span>
-                Detection
+                Start
               </div>
               <div className="flex items-center gap-2">
                 <span className="flex h-3 w-3 items-center justify-center">
-                  <span className="h-3 w-3 rounded border border-[var(--color-surface)] bg-[var(--status-success-fg)]" />
+                  <span className="h-3 w-3 rounded-full border-2 border-[var(--color-text-primary)] bg-[var(--color-surface)]" />
                 </span>
-                Prevention
+                End
               </div>
               <div className="flex items-center gap-2">
-                <span className="flex h-3 w-3 items-center justify-center">
-                  <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden>
-                    <polygon
-                      points="6,0 12,6 6,12 0,6"
-                      fill="var(--status-success-fg)"
-                      stroke="var(--color-surface)"
-                      strokeWidth={1.5}
-                    />
-                  </svg>
-                </span>
-                Attribution
+                <span className="h-3 w-3 rounded-full border-2 border-[var(--color-surface)] bg-[var(--status-success-fg)]" />
+                Successful execution
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[var(--status-success-fg)]" />
-                Success
+                <span className="h-3 w-3 rounded-full border-2 border-[var(--color-surface)] bg-[var(--status-error-fg)]" />
+                Failed execution
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[var(--status-error-fg)]" />
-                Missed
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[var(--status-warn-fg)]" />
-                Not applicable
+                <span className="h-3 w-3 rounded-full border-2 border-[var(--color-surface)] bg-[var(--status-warn-fg)]" />
+                Not recorded
               </div>
             </div>
           </>
