@@ -3,7 +3,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Target, Plus, Edit, Users, Grid3x3, GitBranch, Eye, Shield, UserCheck, Download } from "lucide-react";
+import { ArrowLeft, Target, Plus, Edit, Users, Grid3x3, GitBranch, Eye, Shield, UserCheck, Download, CalendarClock } from "lucide-react";
 import { OutcomeType } from "@prisma/client";
 import { useSession } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { api } from "@/trpc/react";
 import TechniqueEditorModal from "@/features/operations/components/technique-editor";
 import AttackMatrix from "@/features/operations/components/attack-matrix";
 import AttackFlow from "@/features/operations/components/attack-flow";
+import AttackTimeline from "@/features/operations/components/attack-timeline";
 import CreateOperationModal from "@/features/operations/components/create-operation-modal";
 import TechniqueList from "@/features/operations/components/technique-list/technique-list";
 import { exportOperationReport } from "@/lib/exportOperationReport";
@@ -27,13 +28,14 @@ interface Props {
 export default function OperationDetailPage({ operationId }: Props) {
   const [showAddTechnique, setShowAddTechnique] = useState(false);
   const [editingTechnique, setEditingTechnique] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'techniques' | 'matrix' | 'flow'>('techniques');
+  const [activeTab, setActiveTab] = useState<'techniques' | 'matrix' | 'flow' | 'timeline'>('techniques');
   const [showEditOperation, setShowEditOperation] = useState(false);
   const { data: session } = useSession();
   const canEdit = session?.user?.role !== 'VIEWER';
   const overviewRef = useRef<HTMLDivElement>(null);
   const attackFlowRef = useRef<HTMLDivElement>(null);
   const matrixRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   // Fetch operation data client-side for real-time updates
   const { data: operation, isLoading, error } = api.operations.getById.useQuery({
@@ -175,6 +177,7 @@ export default function OperationDetailPage({ operationId }: Props) {
                   overviewElement: overviewRef.current,
                   attackFlowElement: attackFlowRef.current,
                   matrixElement: matrixRef.current,
+                  timelineElement: timelineRef.current,
                 })}
               >
                 <Download className="w-4 h-4" />
@@ -297,6 +300,19 @@ export default function OperationDetailPage({ operationId }: Props) {
               <span>Attack Flow</span>
             </div>
           </button>
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'timeline'
+                ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border)]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <CalendarClock className="w-4 h-4" />
+              <span>Attack Timeline</span>
+            </div>
+          </button>
         </nav>
       </div>
 
@@ -352,6 +368,19 @@ export default function OperationDetailPage({ operationId }: Props) {
 
           <div ref={attackFlowRef}>
             <AttackFlow operation={operation} canEdit={canEdit} />
+          </div>
+        </div>
+
+        {/* Attack Timeline Tab */}
+        <div className={`space-y-6 w-full ${activeTab === 'timeline' ? '' : 'absolute -left-[10000px]'}`}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-[var(--color-text-primary)]">
+              Attack Timeline
+            </h2>
+          </div>
+
+          <div ref={timelineRef} data-export-visible>
+            <AttackTimeline operation={operation} />
           </div>
         </div>
       </div>
