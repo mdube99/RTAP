@@ -1,6 +1,6 @@
 import type { OutcomeStatus } from "@prisma/client";
 import { OutcomeType } from "@prisma/client";
-import type { OutcomeTimelinePoint, TechniqueTimelineDatum } from "./types";
+import type { TechniqueTimelineDatum } from "./types";
 
 const tooltipStyle: React.CSSProperties = {
   backgroundColor: "var(--color-surface-elevated)",
@@ -37,7 +37,6 @@ interface TooltipPayloadItem {
 }
 
 interface AttackTimelineTooltipProps {
-  baseTimestamp: number;
   active?: boolean;
   payload?: TooltipPayloadItem[];
 }
@@ -50,12 +49,8 @@ function isTechniquePayload(value: unknown): value is TechniqueTimelineDatum {
   return hasTooltipType(value) && value.tooltipType === "technique";
 }
 
-function isOutcomePayload(value: unknown): value is OutcomeTimelinePoint {
-  return hasTooltipType(value) && value.tooltipType === "outcome";
-}
-
 export function AttackTimelineTooltip(props: AttackTimelineTooltipProps) {
-  const { active, payload, baseTimestamp } = props;
+  const { active, payload } = props;
   if (!active || !Array.isArray(payload) || payload.length === 0) {
     return null;
   }
@@ -104,32 +99,6 @@ export function AttackTimelineTooltip(props: AttackTimelineTooltipProps) {
               </p>
             ))}
           </div>
-        )}
-      </div>
-    );
-  }
-
-  if (isOutcomePayload(raw)) {
-    const timestamp = baseTimestamp + raw.x;
-    const preciseTime = raw.detectionTime ? formatDateTime(raw.detectionTime) : formatDateTime(timestamp);
-    const label = outcomeTypeLabels[raw.type];
-
-    return (
-      <div style={tooltipStyle}>
-        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{label} outcome</p>
-        {raw.tacticName && (
-          <p className="text-xs text-[var(--color-text-muted)]">{raw.tacticName}</p>
-        )}
-        <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
-          Status: {formatStatus(raw.status)}
-        </p>
-        <p className="text-xs text-[var(--color-text-secondary)]">
-          Time: {preciseTime}
-        </p>
-        {raw.usedFallbackTimestamp && (
-          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">
-            Timestamp approximated from technique activity.
-          </p>
         )}
       </div>
     );
