@@ -33,13 +33,21 @@ const buildTechniqueLabel = (technique: Technique) => {
   return `${id} — ${name}`;
 };
 
-const MIN_CHART_HEIGHT = 320;
-const ROW_HEIGHT = 48;
+const MIN_CHART_HEIGHT = 160;
+const MIN_BAR_SIZE = 10;
+const MAX_BAR_SIZE = 18;
+
+const getRowHeight = (count: number) => {
+  if (count <= 4) return 28;
+  if (count <= 8) return 32;
+  if (count <= 12) return 36;
+  return 40;
+};
 
 export default function AttackTimeline({ operation }: AttackTimelineProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const { chartData, domain, baseTimestamp, chartHeight } = useMemo(() => {
+  const { chartData, domain, baseTimestamp, chartHeight, barSize } = useMemo(() => {
     const candidates: TechniqueTimelineDatum[] = [];
     let earliest: number | null = null;
     let latest: number | null = null;
@@ -87,6 +95,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
         domain: [0, 1] as [number, number],
         baseTimestamp: now,
         chartHeight: MIN_CHART_HEIGHT,
+        barSize: MIN_BAR_SIZE,
       };
     }
 
@@ -110,13 +119,18 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
     });
 
     const span = Math.max(maxTimestamp - baseTimestamp, 24 * 60 * 60 * 1000);
-    const chartHeight = Math.max(MIN_CHART_HEIGHT, chartData.length * ROW_HEIGHT + 32);
+    const rowCount = chartData.length;
+    const rowHeight = getRowHeight(rowCount);
+    const chartHeight = Math.max(MIN_CHART_HEIGHT, rowCount * rowHeight + 32);
+    const computedBarSize = Math.round(rowHeight * 0.6);
+    const barSize = Math.min(MAX_BAR_SIZE, Math.max(MIN_BAR_SIZE, computedBarSize));
 
     return {
       chartData,
       domain: [0, span] as [number, number],
       baseTimestamp,
       chartHeight,
+      barSize,
     };
   }, [operation.techniques]);
 
@@ -193,7 +207,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
                   stackId="timeline"
                   fill="var(--color-accent)"
                   radius={[999, 999, 999, 999]}
-                  barSize={14}
+                  barSize={barSize}
                   isAnimationActive={false}
                 />
               </ComposedChart>
