@@ -36,6 +36,9 @@ const buildTechniqueLabel = (technique: Technique) => {
 const MIN_CHART_HEIGHT = 160;
 const MIN_BAR_SIZE = 10;
 const MAX_BAR_SIZE = 18;
+const MIN_TIMESPAN_MS = 15 * 60 * 1000;
+const MIN_PADDING_MS = 5 * 60 * 1000;
+const SPAN_PADDING_RATIO = 0.1;
 
 const getRowHeight = (count: number) => {
   if (count <= 4) return 28;
@@ -81,7 +84,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
         startTimestamp,
         endTimestamp: endTime ?? null,
         executedSuccessfully: technique.executedSuccessfully,
-        outcomes: technique.outcomes,
+        outcomes: technique.outcomes ?? [],
         offset: 0,
         duration: 0,
         tooltipType: "technique",
@@ -102,32 +105,54 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
     const baseTimestamp = earliest;
     let maxTimestamp = latest;
 
-    const chartData = candidates.map((item) => {
-      const endTimestamp =
-        item.endTimestamp != null && item.endTimestamp >= item.startTimestamp
-          ? item.endTimestamp
-          : item.startTimestamp;
-      if (endTimestamp > maxTimestamp) {
-        maxTimestamp = endTimestamp;
-      }
+    const chartData = candidates
+      .map((item) => {
+        const endTimestamp =
+          item.endTimestamp != null && item.endTimestamp >= item.startTimestamp
+            ? item.endTimestamp
+            : item.startTimestamp;
+        if (endTimestamp > maxTimestamp) {
+          maxTimestamp = endTimestamp;
+        }
 
+        const offset = item.startTimestamp - baseTimestamp;
+        const duration = Math.max(0, endTimestamp - item.startTimestamp);
+
+        if (!Number.isFinite(offset) || !Number.isFinite(duration)) {
+          return null;
+        }
+
+        return {
+          ...item,
+          offset,
+          duration,
+        } satisfies TechniqueTimelineDatum;
+      })
+      .filter((value): value is TechniqueTimelineDatum => value !== null);
+
+    if (chartData.length === 0) {
+      const now = Date.now();
       return {
-        ...item,
-        offset: item.startTimestamp - baseTimestamp,
-        duration: Math.max(0, endTimestamp - item.startTimestamp),
-      } satisfies TechniqueTimelineDatum;
-    });
+        chartData: [] as TechniqueTimelineDatum[],
+        domain: [0, 1] as [number, number],
+        baseTimestamp: now,
+        chartHeight: MIN_CHART_HEIGHT,
+        barSize: MIN_BAR_SIZE,
+      };
+    }
 
-    const span = Math.max(maxTimestamp - baseTimestamp, 24 * 60 * 60 * 1000);
+    const rawSpan = Math.max(maxTimestamp - baseTimestamp, 0);
+    const spanBase = rawSpan === 0 ? MIN_TIMESPAN_MS : rawSpan;
+    const paddedSpan = spanBase + Math.max(MIN_PADDING_MS, Math.round(spanBase * SPAN_PADDING_RATIO));
     const rowCount = chartData.length;
     const rowHeight = getRowHeight(rowCount);
-    const chartHeight = Math.max(MIN_CHART_HEIGHT, rowCount * rowHeight + 32);
+    const chartHeight = Math.max(MIN_CHART_HEIGHT, rowCount * rowHeight + 48);
     const computedBarSize = Math.round(rowHeight * 0.6);
     const barSize = Math.min(MAX_BAR_SIZE, Math.max(MIN_BAR_SIZE, computedBarSize));
 
     return {
       chartData,
-      domain: [0, span] as [number, number],
+      domain: [0, paddedSpan] as [number, number],
       baseTimestamp,
       chartHeight,
       barSize,
@@ -148,6 +173,20 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
       return formatMonthYear(date);
     }
     return formatDate(date, { includeYear });
+  };
+
+  const yAxisTicks = useMemo(() => chartData.map((item) => item.techniqueId), [chartData]);
+  const labelLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of chartData) {
+      map.set(item.techniqueId, item.label);
+    }
+    return map;
+  }, [chartData]);
+
+  const formatTechniqueLabel = (value: string | number) => {
+    if (typeof value !== "string") return "";
+    return labelLookup.get(value) ?? value;
   };
 
   return (
@@ -189,13 +228,16 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
                   tick={{ fontSize: 12 }}
                 />
                 <YAxis
-                  dataKey="label"
+                  dataKey="techniqueId"
                   type="category"
-                  width={220}
+                  width={240}
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 12, fill: "var(--color-text-primary)" }}
                   interval={0}
+                  ticks={yAxisTicks}
+                  tickFormatter={formatTechniqueLabel}
+                  padding={{ top: 12, bottom: 12 }}
                 />
                 <Tooltip
                   cursor={{ fill: "var(--color-surface-muted)", fillOpacity: 0.25 }}
@@ -208,6 +250,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
                   fill="var(--color-accent)"
                   radius={[999, 999, 999, 999]}
                   barSize={barSize}
+                  minPointSize={4}
                   isAnimationActive={false}
                 />
               </ComposedChart>
