@@ -178,7 +178,7 @@ export default function AttackTimeline({ operation }: AttackTimelineProps) {
               <ComposedChart
                 layout="vertical"
                 data={chartData}
-                margin={{ top: 24, right: 32, bottom: 24, left: 24 }}
+                margin={{ top: 24, right: 32, bottom: 24, left: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis
