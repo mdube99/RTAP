@@ -92,6 +92,9 @@ function buildMarkdown(operation: Operation) {
     "## Attack Flow",
     "![Attack Flow](attack-flow.png)",
     "",
+    "## Attack Timeline",
+    "![Attack Timeline](attack-timeline.png)",
+    "",
     "## Attack Matrix",
     "![Attack Matrix](attack-matrix.png)",
     "",
@@ -107,18 +110,21 @@ export async function exportOperationReport({
   overviewElement,
   attackFlowElement,
   matrixElement,
+  timelineElement,
 }: {
   operation: Operation;
   overviewElement: HTMLElement | null;
   attackFlowElement: HTMLElement | null;
   matrixElement: HTMLElement | null;
+  timelineElement: HTMLElement | null;
 }) {
-  if (!attackFlowElement || !matrixElement || !overviewElement) return;
+  if (!attackFlowElement || !matrixElement || !overviewElement || !timelineElement) return;
 
-  const [overviewPng, flowPng, matrixPng] = await Promise.all([
+  const [overviewPng, flowPng, matrixPng, timelinePng] = await Promise.all([
     captureElementToPng(overviewElement),
     captureElementToPng(attackFlowElement),
     captureElementToPng(matrixElement),
+    captureElementToPng(timelineElement),
   ]);
 
   const markdown = buildMarkdown(operation);
@@ -128,9 +134,11 @@ export async function exportOperationReport({
   const overviewData = overviewPng.split(',')[1] ?? '';
   const flowData = flowPng.split(',')[1] ?? '';
   const matrixData = matrixPng.split(',')[1] ?? '';
+  const timelineData = timelinePng.split(',')[1] ?? '';
   zip.file('overview.png', overviewData, { base64: true });
   zip.file('attack-flow.png', flowData, { base64: true });
   zip.file('attack-matrix.png', matrixData, { base64: true });
+  zip.file('attack-timeline.png', timelineData, { base64: true });
 
   const blob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(blob);
