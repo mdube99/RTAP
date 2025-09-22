@@ -91,6 +91,16 @@ Success metrics are displayed on each technique card.
   </a>
 </p>
 
+### Attack Timeline
+
+This is a gantt chart that displays horizontal bars for attack technique execution timelines. Hovering over individual techniques will display additional detail, including defensive outcomes.
+
+<p align="center">
+  <a href="images/attack-timeline.png">
+    <img src="images/attack-timeline.png" width="540" alt="Screenshot - Attack Timeline" />
+  </a>
+</p>
+
 ## 6. Explore Analytics
 
 - Analytics -> Scorecard for high-level effectiveness metrics. Filters at the top limit results by date range and tags.
