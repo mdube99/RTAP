@@ -23,13 +23,13 @@ export function ThemeToggle({ variant = "full" as "full" | "compact" }: { varian
       root.classList.add(key);
     }
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('ttpx.theme', key);
+      localStorage.setItem('rtap.theme', key);
     }
   };
 
   // Load stored theme on mount and apply immediately
   useEffect(() => {
-    const stored = (typeof window !== 'undefined' && (localStorage.getItem('ttpx.theme') as ThemeKey | null)) ?? null;
+    const stored = (typeof window !== 'undefined' && (localStorage.getItem('rtap.theme') as ThemeKey | null)) ?? null;
     const initial = stored && THEMES.some(t => t.key === stored) ? stored : "theme-modern-teal";
     apply(initial);
   }, []);

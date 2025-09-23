@@ -1,4 +1,4 @@
-TTPx UI Style Guide
+RTAP UI Style Guide
 
 Structure and Naming (source of truth)
 

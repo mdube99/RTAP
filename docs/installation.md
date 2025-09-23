@@ -1,6 +1,6 @@
 # Installation
 
-Follow these instructions to set up TTPx in local development or production environments.
+Follow these instructions to set up the Red Team Assessment Platform (RTAP) in local development or production environments.
 
 ## Local Development (Non-Docker)
 
@@ -39,11 +39,14 @@ cp .env.example .env
 docker compose up -d
 
 # Optionally - seed demo taxonomy/operation data (FOR DEMO PURPOSES ONLY)
-docker exec ttpx-web npx tsx scripts/demo-data.ts
+docker exec rtap-web npx tsx scripts/demo-data.ts
 
 # If not using SSO, generate 1-time login URL to set up your first passkey
-docker exec ttpx-web npm run generate-admin-login
+docker exec rtap-web npm run generate-admin-login
 ```
+
+Populate the `.env` file with the `RTAP_*` variables referenced in `docker-compose.yml` (port, database credentials, auth URL,
+and optional provider secrets) before starting the stack.
 
 ## Authentication
 

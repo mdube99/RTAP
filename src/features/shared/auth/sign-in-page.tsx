@@ -73,7 +73,7 @@ export default function SignInPageClient({ passkeysEnabled, googleEnabled, callb
         <CardHeader className="pb-0">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]" />
-            <CardTitle className="text-[var(--color-text-primary)] tracking-tight">TTPx</CardTitle>
+            <CardTitle className="text-[var(--color-text-primary)] tracking-tight">RTAP</CardTitle>
           </div>
           <p className="mt-2 text-sm text-[var(--color-text-muted)]">Red Team operations and analytics</p>
         </CardHeader>
