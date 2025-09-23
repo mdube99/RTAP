@@ -41,7 +41,6 @@
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.6.1",
     "html-to-image": "^1.11.13",
@@ -82,7 +81,7 @@
     "tailwindcss": "^4.1.13",
     "tsx": "^4.20.5",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.27.0",
+    "typescript-eslint": "^8.44.1",
     "vitest": "^3.2.4"
   },
   "ct3aMetadata": {
