@@ -16,7 +16,7 @@ const runInputBase = z.object({
   kind: z.enum(["actor", "operation"]),
   source: z.literal("local"),
   ids: z.array(z.string()).min(1),
-  selections: z.record(z.array(z.string())).optional(), // per-candidate selected technique IDs
+  selections: z.record(z.string(), z.array(z.string())).optional(), // per-candidate selected technique IDs
 });
 
 export const importRouter = createTRPCRouter({
@@ -111,8 +111,13 @@ export const importRouter = createTRPCRouter({
         });
 
         // Create techniques via shared service, handling missing sub-tech by downgrading to parent
-        const selectedForCand = input.selections?.[cand.key]?.map((id) => id.trim().toUpperCase());
-        const techniquesToImport = Array.isArray(selectedForCand) && selectedForCand.length > 0
+        const rawSelections = input.selections?.[cand.key];
+        const selectedForCand = Array.isArray(rawSelections)
+          ? rawSelections
+              .filter((id): id is string => typeof id === "string")
+              .map((id) => id.trim().toUpperCase())
+          : [];
+        const techniquesToImport = selectedForCand.length > 0
           ? cand.techniques.filter((t) => selectedForCand.includes(t.techniqueId.trim().toUpperCase()))
           : cand.techniques;
         // Preserve candidate sequence from STIX bundle; creation order sets sortOrder
