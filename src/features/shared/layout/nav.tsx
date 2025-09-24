@@ -16,7 +16,7 @@ export function Nav() {
       <nav className="flex items-center justify-between p-[var(--space-md)]">
         <div className="flex items-center space-x-[var(--space-lg)]">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">TTPx</span>
+            <span className="text-xl font-bold tracking-tight text-[var(--color-text-primary)]">RTAP</span>
           </Link>
           
           {/* Navigation Links for Authenticated Users */}

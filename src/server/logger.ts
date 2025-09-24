@@ -11,7 +11,7 @@ const level: LogLevel = (process.env.LOG_LEVEL as LogLevel) ?? (isDev ? "debug" 
 const options: LoggerOptions = {
   level,
   base: {
-    service: "ttpx",
+    service: "rtap",
     env: nodeEnv,
   },
 };

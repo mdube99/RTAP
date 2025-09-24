@@ -1,4 +1,4 @@
-# Getting Started with TTPx
+# Getting Started with the Red Team Assessment Platform (RTAP)
 
 This guide walks through the first workflow after you launch the application. Follow the steps in order so operations have the context they need for accurate analytics. The README already covers installing dependencies and starting the app.
 
@@ -28,7 +28,7 @@ This guide walks through the first workflow after you launch the application. Fo
   - Operator: Read/Write access to operations, view analytics, cannot access settings
   - Viewer: Read access to operations and analytics, cannot access settings
 - Create groups under Settings -> Groups if you plan to restrict operations to specific teams.
-- When SSO is enabled, every user still needs to exist in TTPx ahead of time with the correct role and group membership.
+- When SSO is enabled, every user still needs to exist in RTAP ahead of time with the correct role and group membership.
 
 ## 3. Create an Operation
 

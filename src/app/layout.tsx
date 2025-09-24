@@ -9,7 +9,7 @@ import { AppLayout } from "@features/shared/layout/app-layout";
 import { SidebarProvider } from "@features/shared/layout/sidebar-context";
 
 export const metadata: Metadata = {
-  title: "TTPx",
+  title: "Red Team Assessment Platform (RTAP)",
   description: "Red Team reporting and analytics platform",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };

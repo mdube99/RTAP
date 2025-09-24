@@ -204,7 +204,7 @@ export function SidebarNav() {
           <Link href="/" className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
             <div className="w-6 h-6 bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-muted)] rounded-[var(--radius-sm)] flex-shrink-0" />
             {!isCollapsed && (
-              <span className="text-xl font-bold text-[var(--color-text-primary)]">TTPx</span>
+              <span className="text-xl font-bold text-[var(--color-text-primary)]">RTAP</span>
             )}
           </Link>
           <button

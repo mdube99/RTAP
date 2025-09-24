@@ -1,37 +1,37 @@
 services:
-  ttpx-postgres:
+  rtap-postgres:
     image: postgres:16-alpine
-    container_name: ttpx-postgres
+    container_name: rtap-postgres
     environment:
-      POSTGRES_USER: ${TTPX_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${TTPX_POSTGRES_PASSWORD}
-      POSTGRES_DB: ${TTPX_POSTGRES_DB}
+      POSTGRES_USER: ${RTAP_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${RTAP_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${RTAP_POSTGRES_DB}
     volumes:
-      - ttpx-postgres-data:/var/lib/postgresql/data
+      - rtap-postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  ttpx-web:
-    image: ghcr.io/initstring/ttpx:v0.2.2
-    container_name: ttpx-web
+  rtap-web:
+    image: ghcr.io/initstring/rtap:v0.2.2
+    container_name: rtap-web
     depends_on:
-      - ttpx-postgres
+      - rtap-postgres
     environment:
       NODE_ENV: production
-      PORT: ${TTPX_PORT}
-      DATABASE_URL: ${TTPX_DATABASE_URL}
-      AUTH_URL: ${TTPX_AUTH_URL}
-      AUTH_SECRET: ${TTPX_AUTH_SECRET}
-      INITIAL_ADMIN_EMAIL: ${TTPX_INITIAL_ADMIN_EMAIL}
-      AUTH_PASSKEYS_ENABLED: ${TTPX_AUTH_PASSKEYS_ENABLED}
-      GOOGLE_CLIENT_ID: ${TTPX_GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${TTPX_GOOGLE_CLIENT_SECRET}
+      PORT: ${RTAP_PORT}
+      DATABASE_URL: ${RTAP_DATABASE_URL}
+      AUTH_URL: ${RTAP_AUTH_URL}
+      AUTH_SECRET: ${RTAP_AUTH_SECRET}
+      INITIAL_ADMIN_EMAIL: ${RTAP_INITIAL_ADMIN_EMAIL}
+      AUTH_PASSKEYS_ENABLED: ${RTAP_AUTH_PASSKEYS_ENABLED}
+      GOOGLE_CLIENT_ID: ${RTAP_GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${RTAP_GOOGLE_CLIENT_SECRET}
     ports:
-      - "${TTPX_PORT}:${TTPX_PORT}"
+      - "${RTAP_PORT}:${RTAP_PORT}"
     restart: unless-stopped
 
 # If you need TLS, place your own reverse proxy (e.g., Traefik, Caddy, Nginx)
-# in front of ttpx-web and forward port 80/443 to ${PORT}.
+# in front of rtap-web and forward port 80/443 to ${PORT}.
 
 volumes:
-  ttpx-postgres-data:
-    name: ttpx-postgres-data
+  rtap-postgres-data:
+    name: rtap-postgres-data

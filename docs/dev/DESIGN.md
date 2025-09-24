@@ -1,6 +1,6 @@
-# TTPx Design (Current)
+# Red Team Assessment Platform Design (Current)
 
-A concise, accurate description of how TTPx works today.
+A concise, accurate description of how RTAP works today.
 
 ## Purpose
 

@@ -1,8 +1,8 @@
-# TTPx
+# Red Team Assessment Platform (RTAP)
 
 _This is an experiment in creating something useful with AI coding agents. The initial version was made with Claude Code, but it has since been largely re-written by GPT-5 Codex. It is a personal hobby project, with no commitments and no promises._
 
-TTPx is a platform for internal Red Teams to plan and analyze their operations. The features and functionality are designed with their specific needs in mind, such as:
+The Red Team Assessment Platform (RTAP) is built for internal Red Teams to plan and analyze their operations. The features and functionality are designed with their specific needs in mind, such as:
 
 - Integrating the concept of threat actors and crown jewels into all operations - who is being emulated, what is being targeted, and how is that trending over time?
 - Producing visually appealing artifacts from individual operations, such as attack heatmaps and interactive flow charts that allow the operator to design meaningful attack narratives.
