@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, CheckCircle, X, Calendar, Clock } from "lucide-react";
+import { formatDate } from "@lib/formatDate";
 import type { ComponentType } from "react";
 import { OperationStatus } from "@prisma/client";
 import { type RouterOutputs } from "@/trpc/react";
@@ -23,8 +24,17 @@ interface Props {
   operation: Operation;
 }
 
-type StatusVariant = 'warning' | 'info' | 'success' | 'error';
-const statusConfig: Record<OperationStatus, { label: string; color: StatusVariant; icon: ComponentType<{ className?: string }>; description: string; nextStates: OperationStatus[] }> = {
+type StatusVariant = "warning" | "info" | "success" | "error";
+const statusConfig: Record<
+  OperationStatus,
+  {
+    label: string;
+    color: StatusVariant;
+    icon: ComponentType<{ className?: string }>;
+    description: string;
+    nextStates: OperationStatus[];
+  }
+> = {
   [OperationStatus.PLANNING]: {
     label: "Planning",
     color: "warning",
@@ -34,7 +44,7 @@ const statusConfig: Record<OperationStatus, { label: string; color: StatusVarian
   },
   [OperationStatus.ACTIVE]: {
     label: "Active",
-    color: "info", 
+    color: "info",
     icon: Play,
     description: "Operation is currently being executed",
     nextStates: [OperationStatus.COMPLETED, OperationStatus.CANCELLED],
@@ -74,22 +84,22 @@ export default function OperationStatusManager({ operation }: Props) {
 
   const handleStatusChange = () => {
     if (!newStatus) return;
-    
+
     const updates: {
       status: OperationStatus;
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
     } = {
       status: newStatus,
     };
 
     // Auto-set dates based on status transitions
     if (newStatus === OperationStatus.ACTIVE && !operation.startDate) {
-      updates.startDate = new Date();
+      updates.startDate = new Date().toISOString();
     }
-    
+
     if (newStatus === OperationStatus.COMPLETED && !operation.endDate) {
-      updates.endDate = new Date();
+      updates.endDate = new Date().toISOString();
     }
 
     updateOperation.mutate({
@@ -102,7 +112,7 @@ export default function OperationStatusManager({ operation }: Props) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <CurrentIcon className="w-5 h-5" />
+          <CurrentIcon className="h-5 w-5" />
           Operation Status
         </CardTitle>
       </CardHeader>
@@ -110,39 +120,45 @@ export default function OperationStatusManager({ operation }: Props) {
         {/* Current Status Display */}
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <Badge variant={currentConfig.color}>
-              {currentConfig.label}
-            </Badge>
+            <Badge variant={currentConfig.color}>{currentConfig.label}</Badge>
             <span className="text-sm text-[var(--color-text-secondary)]">
               {currentConfig.description}
             </span>
           </div>
-          
+
           {/* Status Timeline */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {operation.createdAt && (
               <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-[var(--color-text-muted)]" />
+                <Calendar className="h-4 w-4 text-[var(--color-text-muted)]" />
                 <span className="text-[var(--color-text-secondary)]">
-                  Created: {new Date(operation.createdAt).toLocaleDateString()}
+                  Created:{" "}
+                  {formatDate(operation.createdAt, { includeYear: true })}
                 </span>
               </div>
             )}
-            
+
             {operation.startDate && (
               <div className="flex items-center gap-2 text-sm">
-                <Play className="w-4 h-4" style={{ color: "var(--status-info-fg)" }} />
+                <Play
+                  className="h-4 w-4"
+                  style={{ color: "var(--status-info-fg)" }}
+                />
                 <span className="text-[var(--color-text-secondary)]">
-                  Started: {new Date(operation.startDate).toLocaleDateString()}
+                  Started:{" "}
+                  {formatDate(operation.startDate, { includeYear: true })}
                 </span>
               </div>
             )}
-            
+
             {operation.endDate && (
               <div className="flex items-center gap-2 text-sm">
-                <CheckCircle className="w-4 h-4" style={{ color: "var(--status-success-fg)" }} />
+                <CheckCircle
+                  className="h-4 w-4"
+                  style={{ color: "var(--status-success-fg)" }}
+                />
                 <span className="text-[var(--color-text-secondary)]">
-                  Ended: {new Date(operation.endDate).toLocaleDateString()}
+                  Ended: {formatDate(operation.endDate, { includeYear: true })}
                 </span>
               </div>
             )}
@@ -151,11 +167,11 @@ export default function OperationStatusManager({ operation }: Props) {
 
         {/* Status Change Controls */}
         {currentConfig.nextStates.length > 0 && (
-          <div className="space-y-3 pt-4 border-t border-[var(--color-border)]">
+          <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
             <h4 className="text-sm font-medium text-[var(--color-text-primary)]">
               Change Status
             </h4>
-            
+
             {!isChanging ? (
               <Button
                 variant="secondary"
@@ -167,7 +183,12 @@ export default function OperationStatusManager({ operation }: Props) {
               </Button>
             ) : (
               <div className="space-y-3">
-                <Select value={newStatus} onValueChange={(value) => setNewStatus(value as OperationStatus | "")}>
+                <Select
+                  value={newStatus}
+                  onValueChange={(value) =>
+                    setNewStatus(value as OperationStatus | "")
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select new status..." />
                   </SelectTrigger>
@@ -178,7 +199,7 @@ export default function OperationStatusManager({ operation }: Props) {
                       return (
                         <SelectItem key={status} value={status}>
                           <div className="flex items-center gap-2">
-                            <StatusIcon className="w-4 h-4" />
+                            <StatusIcon className="h-4 w-4" />
                             <span>{config.label}</span>
                           </div>
                         </SelectItem>
@@ -186,25 +207,27 @@ export default function OperationStatusManager({ operation }: Props) {
                     })}
                   </SelectContent>
                 </Select>
-                
+
                 {newStatus && (
-                  <div className="p-3 bg-[var(--color-surface-elevated)] rounded-lg">
+                  <div className="rounded-lg bg-[var(--color-surface-elevated)] p-3">
                     <p className="text-sm text-[var(--color-text-secondary)]">
                       {statusConfig[newStatus].description}
                     </p>
-                    {newStatus === OperationStatus.ACTIVE && !operation.startDate && (
-                      <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                        • Start date will be set to today
-                      </p>
-                    )}
-                    {newStatus === OperationStatus.COMPLETED && !operation.endDate && (
-                      <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                        • End date will be set to today
-                      </p>
-                    )}
+                    {newStatus === OperationStatus.ACTIVE &&
+                      !operation.startDate && (
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                          • Start date will be set to today
+                        </p>
+                      )}
+                    {newStatus === OperationStatus.COMPLETED &&
+                      !operation.endDate && (
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                          • End date will be set to today
+                        </p>
+                      )}
                   </div>
                 )}
-                
+
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
@@ -222,7 +245,8 @@ export default function OperationStatusManager({ operation }: Props) {
                     size="sm"
                     onClick={handleStatusChange}
                     disabled={!newStatus || updateOperation.isPending}
-                    variant="secondary" className="flex-1"
+                    variant="secondary"
+                    className="flex-1"
                   >
                     {updateOperation.isPending ? "Updating..." : "Update"}
                   </Button>
@@ -231,9 +255,9 @@ export default function OperationStatusManager({ operation }: Props) {
             )}
           </div>
         )}
-        
+
         {currentConfig.nextStates.length === 0 && (
-          <div className="pt-4 border-t border-[var(--color-border)]">
+          <div className="border-t border-[var(--color-border)] pt-4">
             <p className="text-sm text-[var(--color-text-muted)]">
               This operation is in a final state and cannot be changed.
             </p>

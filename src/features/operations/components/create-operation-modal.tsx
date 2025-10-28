@@ -13,8 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Target, Edit } from "lucide-react";
 import { logger } from "@/lib/logger";
-import { Combobox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import {
+  Combobox,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import TaxonomySelector from "./technique-editor/taxonomy-selector";
+import { utcToLocalDateInput } from "@lib/utcDate";
 
 type Operation = RouterOutputs["operations"]["getById"];
 type CreateOperationInput = RouterInputs["operations"]["create"];
@@ -46,7 +54,10 @@ const OperationFormSchema = z
       }
     }
 
-    if (values.visibility === OperationVisibility.GROUPS_ONLY && (values.accessGroupIds?.length ?? 0) === 0) {
+    if (
+      values.visibility === OperationVisibility.GROUPS_ONLY &&
+      (values.accessGroupIds?.length ?? 0) === 0
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["accessGroupIds"],
@@ -57,21 +68,18 @@ const OperationFormSchema = z
 
 type OperationFormValues = z.infer<typeof OperationFormSchema>;
 
-function formatDateForInput(date?: Date | string | null): string | undefined {
-  if (!date) return undefined;
-  const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) return undefined;
-  return parsed.toISOString().split("T")[0];
-}
-
 function buildDefaultValues(operation?: Operation): OperationFormValues {
   return {
     name: operation?.name ?? "",
     description: operation?.description ?? "",
     status: operation?.status ?? OperationStatus.PLANNING,
     threatActorId: operation?.threatActorId ?? undefined,
-    startDate: formatDateForInput(operation?.startDate),
-    endDate: formatDateForInput(operation?.endDate),
+    startDate: utcToLocalDateInput(
+      operation?.startDate ? new Date(operation.startDate) : null,
+    ),
+    endDate: utcToLocalDateInput(
+      operation?.endDate ? new Date(operation.endDate) : null,
+    ),
     tagIds: operation?.tags.map((tag) => tag.id) ?? [],
     targetIds: operation?.targets.map((target) => target.id) ?? [],
     visibility: operation?.visibility ?? OperationVisibility.EVERYONE,
@@ -87,9 +95,18 @@ interface Props {
   operation?: Operation; // Pass the operation data for edit mode
 }
 
-export default function CreateOperationModal({ isOpen, onClose, onSuccess, operationId, operation }: Props) {
+export default function CreateOperationModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  operationId,
+  operation,
+}: Props) {
   const isEditMode = Boolean(operationId);
-  const defaultValues = useMemo(() => buildDefaultValues(operation), [operation]);
+  const defaultValues = useMemo(
+    () => buildDefaultValues(operation),
+    [operation],
+  );
 
   const form = useForm<OperationFormValues>({
     defaultValues,
@@ -97,7 +114,8 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
     mode: "onChange",
   });
 
-  const { control, handleSubmit, watch, setValue, reset, register, formState } = form;
+  const { control, handleSubmit, watch, setValue, reset, register, formState } =
+    form;
   const { errors, isValid } = formState;
 
   useEffect(() => {
@@ -112,8 +130,14 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
   const selectedGroupIds = watch("accessGroupIds") ?? [];
 
   useEffect(() => {
-    if (visibility !== OperationVisibility.GROUPS_ONLY && selectedGroupIds.length > 0) {
-      setValue("accessGroupIds", [], { shouldDirty: true, shouldValidate: true });
+    if (
+      visibility !== OperationVisibility.GROUPS_ONLY &&
+      selectedGroupIds.length > 0
+    ) {
+      setValue("accessGroupIds", [], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
   }, [visibility, selectedGroupIds.length, setValue]);
 
@@ -165,12 +189,15 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
       name: values.name.trim(),
       description: values.description.trim(),
       threatActorId: values.threatActorId ?? undefined,
-      startDate: values.startDate ? new Date(values.startDate) : undefined,
-      endDate: values.endDate ? new Date(values.endDate) : undefined,
+      startDate: values.startDate ?? undefined,
+      endDate: values.endDate ?? undefined,
       tagIds: values.tagIds ?? [],
       targetIds: values.targetIds ?? [],
       visibility: values.visibility,
-      accessGroupIds: values.visibility === OperationVisibility.GROUPS_ONLY ? values.accessGroupIds ?? [] : [],
+      accessGroupIds:
+        values.visibility === OperationVisibility.GROUPS_ONLY
+          ? (values.accessGroupIds ?? [])
+          : [],
     };
 
     if (isEditMode && operationId) {
@@ -190,18 +217,21 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-      <Card variant="elevated" className="w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[var(--shadow-lg)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <Card
+        variant="elevated"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto shadow-[var(--shadow-lg)]"
+      >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="text-xl font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-xl font-semibold text-[var(--color-text-primary)]">
             {isEditMode ? (
               <>
-                <Edit className="w-5 h-5" />
+                <Edit className="h-5 w-5" />
                 Edit Operation
               </>
             ) : (
               <>
-                <Target className="w-5 h-5" />
+                <Target className="h-5 w-5" />
                 Create New Operation
               </>
             )}
@@ -216,7 +246,7 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
               }}
               className="h-auto p-1"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
@@ -225,7 +255,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
           <form onSubmit={onSubmit} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Basic Information</h3>
+              <h3 className="text-lg font-medium text-[var(--color-text-primary)]">
+                Basic Information
+              </h3>
 
               <div className="space-y-2">
                 <Label htmlFor="name">Operation Name *</Label>
@@ -236,7 +268,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                   required
                 />
                 {errors.name && (
-                  <p className="text-sm text-[var(--color-error)]">{errors.name.message}</p>
+                  <p className="text-sm text-[var(--color-error)]">
+                    {errors.name.message}
+                  </p>
                 )}
               </div>
 
@@ -247,11 +281,13 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                   placeholder="Describe the operation objectives, scope, and methodology..."
                   {...register("description")}
                   required
-                  className="w-full min-h-[100px] p-3 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2"
+                  className="min-h-[100px] w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2 focus:outline-none"
                   rows={4}
                 />
                 {errors.description && (
-                  <p className="text-sm text-[var(--color-error)]">{errors.description.message}</p>
+                  <p className="text-sm text-[var(--color-error)]">
+                    {errors.description.message}
+                  </p>
                 )}
               </div>
 
@@ -264,7 +300,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                     render={({ field }) => (
                       <Select
                         value={field.value}
-                        onValueChange={(value) => field.onChange(value as OperationStatus)}
+                        onValueChange={(value) =>
+                          field.onChange(value as OperationStatus)
+                        }
                       >
                         <SelectTrigger id="status">
                           <SelectValue placeholder="Select operation status" />
@@ -284,7 +322,7 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="startDate">Start Date (Optional)</Label>
                   <Controller
@@ -295,7 +333,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                         id="startDate"
                         type="date"
                         value={field.value ?? ""}
-                        onChange={(event) => field.onChange(event.target.value || undefined)}
+                        onChange={(event) =>
+                          field.onChange(event.target.value || undefined)
+                        }
                       />
                     )}
                   />
@@ -311,19 +351,27 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                         id="endDate"
                         type="date"
                         value={field.value ?? ""}
-                        onChange={(event) => field.onChange(event.target.value || undefined)}
+                        onChange={(event) =>
+                          field.onChange(event.target.value || undefined)
+                        }
                       />
                     )}
                   />
                   {errors.endDate && (
-                    <p className="text-sm text-[var(--color-error)]">{errors.endDate.message}</p>
+                    <p className="text-sm text-[var(--color-error)]">
+                      {errors.endDate.message}
+                    </p>
                   )}
                 </div>
               </div>
 
-              <div className="p-3 bg-[var(--color-surface-elevated)] rounded-lg">
+              <div className="rounded-lg bg-[var(--color-surface-elevated)] p-3">
                 <p className="text-sm text-[var(--color-text-secondary)]">
-                  <strong>Note:</strong> New operations start in &quot;Planning&quot; status by default. {isEditMode ? "You can update the status above." : "You can change the status later by editing the operation."}
+                  <strong>Note:</strong> New operations start in
+                  &quot;Planning&quot; status by default.{" "}
+                  {isEditMode
+                    ? "You can update the status above."
+                    : "You can change the status later by editing the operation."}
                 </p>
               </div>
             </div>
@@ -333,7 +381,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
               variant="tags"
               items={tags}
               selectedIds={selectedTagIds}
-              onSelectionChange={(ids) => setValue("tagIds", ids, { shouldDirty: true })}
+              onSelectionChange={(ids) =>
+                setValue("tagIds", ids, { shouldDirty: true })
+              }
               label="Tags"
               description="Select relevant tags for this operation:"
               searchable
@@ -343,8 +393,10 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
             {/* Threat Actor Selection */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-[var(--color-text-muted)]" />
-                <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Threat Actor Emulation</h3>
+                <Target className="h-5 w-5 text-[var(--color-text-muted)]" />
+                <h3 className="text-lg font-medium text-[var(--color-text-primary)]">
+                  Threat Actor Emulation
+                </h3>
               </div>
 
               <div className="space-y-2">
@@ -355,7 +407,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                   render={({ field }) => (
                     <Combobox
                       value={field.value ?? ""}
-                      onValueChange={(value) => field.onChange(value || undefined)}
+                      onValueChange={(value) =>
+                        field.onChange(value || undefined)
+                      }
                       options={threatActors.map((actor) => ({
                         value: actor.id,
                         label: actor.name,
@@ -376,7 +430,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
               variant="targets"
               items={targets}
               selectedIds={selectedTargetIds}
-              onSelectionChange={(ids) => setValue("targetIds", ids, { shouldDirty: true })}
+              onSelectionChange={(ids) =>
+                setValue("targetIds", ids, { shouldDirty: true })
+              }
               label="Planned Targets"
               description="Select assets this operation plans to target:"
               searchable
@@ -385,7 +441,9 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
 
             {/* Access Control */}
             <div className="space-y-3">
-              <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Access</h3>
+              <h3 className="text-lg font-medium text-[var(--color-text-primary)]">
+                Access
+              </h3>
               <div className="space-y-2">
                 <Label>Visibility</Label>
                 <div className="flex gap-4">
@@ -395,7 +453,11 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                       name="visibility"
                       value="EVERYONE"
                       checked={visibility === OperationVisibility.EVERYONE}
-                      onChange={() => setValue("visibility", OperationVisibility.EVERYONE, { shouldDirty: true })}
+                      onChange={() =>
+                        setValue("visibility", OperationVisibility.EVERYONE, {
+                          shouldDirty: true,
+                        })
+                      }
                     />
                     Everyone
                   </label>
@@ -405,7 +467,13 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                       name="visibility"
                       value="GROUPS_ONLY"
                       checked={visibility === OperationVisibility.GROUPS_ONLY}
-                      onChange={() => setValue("visibility", OperationVisibility.GROUPS_ONLY, { shouldDirty: true })}
+                      onChange={() =>
+                        setValue(
+                          "visibility",
+                          OperationVisibility.GROUPS_ONLY,
+                          { shouldDirty: true },
+                        )
+                      }
                     />
                     Specific groups
                   </label>
@@ -419,7 +487,7 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                     {groups.map((group) => (
                       <label
                         key={group.id}
-                        className="flex items-center gap-2 px-2 py-1 rounded-[var(--radius-sm)] bg-[var(--color-surface)] border border-[var(--color-border)] text-sm"
+                        className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
                       >
                         <input
                           type="checkbox"
@@ -427,8 +495,13 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                           onChange={(event) => {
                             const updated = event.target.checked
                               ? [...selectedGroupIds, group.id]
-                              : selectedGroupIds.filter((id) => id !== group.id);
-                            setValue("accessGroupIds", updated, { shouldDirty: true, shouldValidate: true });
+                              : selectedGroupIds.filter(
+                                  (id) => id !== group.id,
+                                );
+                            setValue("accessGroupIds", updated, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
                           }}
                         />
                         {group.name}
@@ -436,17 +509,20 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
                     ))}
                   </div>
                   {errors.accessGroupIds?.message && (
-                    <p className="text-sm text-[var(--color-error)]">{errors.accessGroupIds.message}</p>
+                    <p className="text-sm text-[var(--color-error)]">
+                      {errors.accessGroupIds.message}
+                    </p>
                   )}
                   <p className="text-xs text-[var(--color-text-muted)]">
-                    Members of the selected groups can view or edit this operation according to their role.
+                    Members of the selected groups can view or edit this
+                    operation according to their role.
                   </p>
                 </div>
               )}
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-between gap-3 pt-4 border-t border-[var(--color-border)] items-center">
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-4">
               <Button
                 type="button"
                 variant="secondary"
@@ -458,7 +534,11 @@ export default function CreateOperationModal({ isOpen, onClose, onSuccess, opera
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isMutating || !isValid} variant="secondary">
+              <Button
+                type="submit"
+                disabled={isMutating || !isValid}
+                variant="secondary"
+              >
                 {createOperation.isPending
                   ? "Creating..."
                   : updateOperation.isPending

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { analyticsRouter } from "@/server/api/routers/analytics";
-import { OutcomeStatus, OutcomeType, type Prisma, type UserRole } from "@prisma/client";
+import {
+  OutcomeStatus,
+  OutcomeType,
+  type Prisma,
+  type UserRole,
+} from "@prisma/client";
 import {
   buildCoverageOutcome,
   buildCoverageTechnique,
@@ -44,7 +49,10 @@ describe("Analytics Coverage byTactic completeness", () => {
     mockDb.technique.findMany.mockResolvedValue(techniques);
 
     const caller = analyticsRouter.createCaller(createCtx());
-    const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
+    const result = await caller.coverage.byTactic({
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-12-31T00:00:00.000Z",
+    });
 
     expect(result).toHaveLength(3);
     const ids = result.map((r) => r.tacticId).sort();
@@ -79,8 +87,14 @@ describe("Analytics Coverage byTactic completeness", () => {
         tactic: buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
       },
       outcomes: [
-        buildCoverageOutcome("tech-1", { type: OutcomeType.DETECTION, status: OutcomeStatus.DETECTED }),
-        buildCoverageOutcome("tech-1", { type: OutcomeType.PREVENTION, status: OutcomeStatus.MISSED }),
+        buildCoverageOutcome("tech-1", {
+          type: OutcomeType.DETECTION,
+          status: OutcomeStatus.DETECTED,
+        }),
+        buildCoverageOutcome("tech-1", {
+          type: OutcomeType.PREVENTION,
+          status: OutcomeStatus.MISSED,
+        }),
       ],
     });
 
@@ -97,11 +111,17 @@ describe("Analytics Coverage byTactic completeness", () => {
       outcomes: [],
     });
 
-    const techniqueResults: CoverageTechnique[] = [executedTechnique, plannedTechnique];
+    const techniqueResults: CoverageTechnique[] = [
+      executedTechnique,
+      plannedTechnique,
+    ];
     mockDb.technique.findMany.mockResolvedValue(techniqueResults);
 
     const caller = analyticsRouter.createCaller(createCtx());
-    const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
+    const result = await caller.coverage.byTactic({
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-12-31T00:00:00.000Z",
+    });
 
     expect(result).toHaveLength(2);
     const init = result.find((r) => r.tacticId === "TA0001")!;
@@ -131,13 +151,18 @@ describe("Analytics Coverage byTactic completeness", () => {
     mockDb.technique.findMany.mockResolvedValue(techniques);
 
     const caller = analyticsRouter.createCaller(createCtx());
-    const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
+    const result = await caller.coverage.byTactic({
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-12-31T00:00:00.000Z",
+    });
     const order = result.map((r) => r.tacticId);
     expect(order).toEqual(["TA0043", "TA0042", "TA0001"]);
   });
 
   it("counts operations where a tactic was only planned", async () => {
-    const tactics: Prisma.MitreTactic[] = [buildMitreTactic({ id: "TA0001", name: "Initial Access" })];
+    const tactics: Prisma.MitreTactic[] = [
+      buildMitreTactic({ id: "TA0001", name: "Initial Access" }),
+    ];
     mitreTacticFindMany.mockResolvedValue(tactics);
     const plannedOnly = buildCoverageTechnique({
       id: "tech-3",
@@ -154,7 +179,10 @@ describe("Analytics Coverage byTactic completeness", () => {
     mockDb.technique.findMany.mockResolvedValue(plannedTechniques);
 
     const caller = analyticsRouter.createCaller(createCtx());
-    const result = await caller.coverage.byTactic({ start: new Date("2024-01-01"), end: new Date("2024-12-31") });
+    const result = await caller.coverage.byTactic({
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-12-31T00:00:00.000Z",
+    });
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({

@@ -15,7 +15,11 @@ vi.mock("@/server/db", () => ({
 
 const { db } = await import("@/server/db");
 const mockDb = vi.mocked(db, true);
-const baseTechnique = { id: "technique-1", operationId: 1, operation: { id: 1, createdById: "user-1" } };
+const baseTechnique = {
+  id: "technique-1",
+  operationId: 1,
+  operation: { id: 1, createdById: "user-1" },
+};
 
 describe("Techniques Router — update", () => {
   beforeEach(() => {
@@ -32,17 +36,33 @@ describe("Techniques Router — update", () => {
     const ctx = createTestContext(mockDb, "OPERATOR");
     const caller = techniquesRouter.createCaller(ctx);
     mockDb.technique.findUnique.mockResolvedValue(baseTechnique);
-    mockDb.tool.findMany.mockResolvedValue([{ id: "tool-2", name: "Metasploit" }]);
-    mockDb.technique.update.mockResolvedValue({ id: "technique-1", description: "Updated" });
-    const res = await caller.update({ id: "technique-1", description: "Updated", toolIds: ["tool-2"] });
-    expect(res).toEqual({ id: "technique-1", description: "Updated" });
+    mockDb.tool.findMany.mockResolvedValue([
+      { id: "tool-2", name: "Metasploit" },
+    ]);
+    mockDb.technique.update.mockResolvedValue({
+      id: "technique-1",
+      description: "Updated",
+    });
+    const res = await caller.update({
+      id: "technique-1",
+      description: "Updated",
+      toolIds: ["tool-2"],
+    });
+    expect(res).toEqual({
+      id: "technique-1",
+      description: "Updated",
+      startTime: null,
+      endTime: null,
+    });
   });
 
   it("should throw error if technique not found", async () => {
     const ctx = createTestContext(mockDb, "OPERATOR");
     const caller = techniquesRouter.createCaller(ctx);
     mockDb.technique.findUnique.mockResolvedValue(null);
-    await expect(caller.update({ id: "none", description: "x" })).rejects.toThrow(
+    await expect(
+      caller.update({ id: "none", description: "x" }),
+    ).rejects.toThrow(
       new TRPCError({ code: "NOT_FOUND", message: "Technique not found" }),
     );
   });

@@ -21,8 +21,8 @@ const createTechniqueData = {
   description: "Test phishing campaign",
   mitreTechniqueId: "T1566",
   mitreSubTechniqueId: "T1566.001",
-  startTime: new Date("2024-01-01T10:00:00Z"),
-  endTime: new Date("2024-01-01T11:00:00Z"),
+  startTime: "2024-01-01T10:00:00.000Z",
+  endTime: "2024-01-01T11:00:00.000Z",
   sourceIp: "192.168.1.100",
   targetSystem: "workstation-01",
   toolIds: ["tool-1"],
@@ -30,9 +30,18 @@ const createTechniqueData = {
 };
 
 function mockCreateTechniqueDependencies() {
-  mockDb.mitreTechnique.findUnique.mockResolvedValue({ id: "T1566", name: "Phishing" });
-  mockDb.mitreSubTechnique.findUnique.mockResolvedValue({ id: "T1566.001", name: "Sub", techniqueId: "T1566" });
-  mockDb.tool.findMany.mockResolvedValue([{ id: "tool-1", name: "Cobalt Strike" }]);
+  mockDb.mitreTechnique.findUnique.mockResolvedValue({
+    id: "T1566",
+    name: "Phishing",
+  });
+  mockDb.mitreSubTechnique.findUnique.mockResolvedValue({
+    id: "T1566.001",
+    name: "Sub",
+    techniqueId: "T1566",
+  });
+  mockDb.tool.findMany.mockResolvedValue([
+    { id: "tool-1", name: "Cobalt Strike" },
+  ]);
   mockDb.technique.findFirst.mockResolvedValue(null);
   mockDb.technique.create.mockResolvedValue({ id: "technique-1" });
 }
@@ -81,7 +90,10 @@ describe("Techniques Router — create", () => {
     });
     mockCreateTechniqueDependencies();
 
-    const res = await caller.create({ ...createTechniqueData, description: "" });
+    const res = await caller.create({
+      ...createTechniqueData,
+      description: "",
+    });
     expect(res).toEqual({ id: "technique-1" });
   });
 
@@ -90,28 +102,53 @@ describe("Techniques Router — create", () => {
     const caller = techniquesRouter.createCaller(ctx);
     mockDb.operation.findUnique.mockResolvedValue(null);
     await expect(caller.create(createTechniqueData)).rejects.toThrow(
-      new TRPCError({ code: "FORBIDDEN", message: "You don't have permission to modify this operation" }),
+      new TRPCError({
+        code: "FORBIDDEN",
+        message: "You don't have permission to modify this operation",
+      }),
     );
   });
 
   it("should throw error if MITRE technique not found", async () => {
     const ctx = createTestContext(mockDb, "OPERATOR");
     const caller = techniquesRouter.createCaller(ctx);
-    mockDb.operation.findUnique.mockResolvedValue({ id: 1, createdById: "user-1", visibility: "EVERYONE", accessGroups: [], targets: [] });
+    mockDb.operation.findUnique.mockResolvedValue({
+      id: 1,
+      createdById: "user-1",
+      visibility: "EVERYONE",
+      accessGroups: [],
+      targets: [],
+    });
     mockDb.mitreTechnique.findUnique.mockResolvedValue(null);
-    await expect(caller.create({ ...createTechniqueData, targets: [] })).rejects.toThrow(
-      new TRPCError({ code: "BAD_REQUEST", message: "MITRE technique not found" }),
+    await expect(
+      caller.create({ ...createTechniqueData, targets: [] }),
+    ).rejects.toThrow(
+      new TRPCError({
+        code: "BAD_REQUEST",
+        message: "MITRE technique not found",
+      }),
     );
   });
 
   it("should throw error if MITRE sub-technique not found", async () => {
     const ctx = createTestContext(mockDb, "OPERATOR");
     const caller = techniquesRouter.createCaller(ctx);
-    mockDb.operation.findUnique.mockResolvedValue({ id: 1, createdById: "user-1", visibility: "EVERYONE", accessGroups: [], targets: [] });
+    mockDb.operation.findUnique.mockResolvedValue({
+      id: 1,
+      createdById: "user-1",
+      visibility: "EVERYONE",
+      accessGroups: [],
+      targets: [],
+    });
     mockDb.mitreTechnique.findUnique.mockResolvedValue({ id: "T1566" });
     mockDb.mitreSubTechnique.findUnique.mockResolvedValue(null);
-    await expect(caller.create({ ...createTechniqueData, targets: [] })).rejects.toThrow(
-      new TRPCError({ code: "BAD_REQUEST", message: "MITRE sub-technique not found" }),
+    await expect(
+      caller.create({ ...createTechniqueData, targets: [] }),
+    ).rejects.toThrow(
+      new TRPCError({
+        code: "BAD_REQUEST",
+        message: "MITRE sub-technique not found",
+      }),
     );
   });
 });

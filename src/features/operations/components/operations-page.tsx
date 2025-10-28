@@ -14,7 +14,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@components/ui/select";
-import { Plus, Search, Filter, Calendar, Target, Eye, Shield, UserCheck, Trash2, Globe2, Users } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  Target,
+  Eye,
+  Shield,
+  UserCheck,
+  Trash2,
+  Globe2,
+  Users,
+} from "lucide-react";
 import { OutcomeType, type OperationStatus, UserRole } from "@prisma/client";
 import Link from "next/link";
 import CreateOperationModal from "./create-operation-modal";
@@ -22,25 +34,45 @@ import CreateOperationModal from "./create-operation-modal";
 import ImportDialog from "@features/settings/components/import/import-dialog";
 import ConfirmModal from "@components/ui/confirm-modal";
 import CreateOperationFromActorModal from "./create-operation-from-actor-modal";
-import ThreatActorSelector, { type ThreatActorForPick } from "./threat-actor-selector";
+import ThreatActorSelector, {
+  type ThreatActorForPick,
+} from "./threat-actor-selector";
 // Render plain text only for safety
 import { summarizeTechniqueOutcomeMetrics } from "@/lib/outcomeMetrics";
-import { operationStatusBadgeVariant, operationStatusLabels } from "@features/shared/operations/operation-status";
+import {
+  operationStatusBadgeVariant,
+  operationStatusLabels,
+} from "@features/shared/operations/operation-status";
+import { formatUTCDate } from "@lib/utcDate";
 
 export default function OperationsPage() {
   const { data: session } = useSession();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<OperationStatus | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<OperationStatus | "ALL">(
+    "ALL",
+  );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showActorPicker, setShowActorPicker] = useState(false);
   const [selectResetKey, setSelectResetKey] = useState(0);
-  const [selectedActor, setSelectedActor] = useState<null | { id: string; name: string; description: string; mitreTechniques?: { id: string; name: string; description: string; tactic?: { id: string; name: string } | null; url?: string | null }[] }>(null);
+  const [selectedActor, setSelectedActor] = useState<null | {
+    id: string;
+    name: string;
+    description: string;
+    mitreTechniques?: {
+      id: string;
+      name: string;
+      description: string;
+      tactic?: { id: string; name: string } | null;
+      url?: string | null;
+    }[];
+  }>(null);
   const utils = api.useUtils();
-  
-  // Check if user can create/modify operations (Admins and Operators)
-  const canModifyOperations = session?.user?.role === UserRole.ADMIN || session?.user?.role === UserRole.OPERATOR;
 
+  // Check if user can create/modify operations (Admins and Operators)
+  const canModifyOperations =
+    session?.user?.role === UserRole.ADMIN ||
+    session?.user?.role === UserRole.OPERATOR;
 
   // Fetch operations with filters
   const { data: operationsData, isLoading } = api.operations.list.useQuery({
@@ -55,23 +87,27 @@ export default function OperationsPage() {
   const operations = operationsData?.operations ?? [];
 
   // Filter operations by search term and tags
-  const filteredOperations = operations.filter(op => {
-    const matchesSearch = op.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredOperations = operations.filter((op) => {
+    const matchesSearch =
+      op.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       op.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (op.threatActor?.name ?? "").toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesTags = selectedTagIds.length === 0 || 
-      selectedTagIds.some(selectedTagId => 
-        op.tags.some(opTag => opTag.id === selectedTagId)
+      (op.threatActor?.name ?? "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+    const matchesTags =
+      selectedTagIds.length === 0 ||
+      selectedTagIds.some((selectedTagId) =>
+        op.tags.some((opTag) => opTag.id === selectedTagId),
       );
-    
+
     return matchesSearch && matchesTags;
   });
 
   // Deletion is now handled inside the operation editor modal; remove inline trash can.
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -81,7 +117,7 @@ export default function OperationsPage() {
         </div>
         {canModifyOperations && (
           <div className="flex gap-2">
-            <Select 
+            <Select
               key={selectResetKey}
               onValueChange={(value) => {
                 if (value === "blank") setShowCreateModal(true);
@@ -92,7 +128,7 @@ export default function OperationsPage() {
               }}
             >
               <SelectTrigger className="w-[140px]">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="New" />
               </SelectTrigger>
               <SelectContent>
@@ -106,9 +142,9 @@ export default function OperationsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-[var(--color-text-muted)]" />
           <Input
             placeholder="Search operations..."
             value={searchTerm}
@@ -116,10 +152,15 @@ export default function OperationsPage() {
             className="pl-10"
           />
         </div>
-        
-        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as OperationStatus | "ALL")}>
+
+        <Select
+          value={statusFilter}
+          onValueChange={(value) =>
+            setStatusFilter(value as OperationStatus | "ALL")
+          }
+        >
           <SelectTrigger className="w-[180px]">
-            <Filter className="w-4 h-4 mr-2" />
+            <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -133,19 +174,31 @@ export default function OperationsPage() {
 
         {/* Tag Filter */}
         {allTags && allTags.length > 0 && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-sm text-[var(--color-text-muted)] whitespace-nowrap">Filter by tags:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm whitespace-nowrap text-[var(--color-text-muted)]">
+              Filter by tags:
+            </span>
             {allTags.map((tag: { id: string; name: string; color: string }) => (
               <Badge
                 key={tag.id}
-                variant={selectedTagIds.includes(tag.id) ? "default" : "secondary"}
-                className="cursor-pointer hover:opacity-80 transition-opacity"
-                style={selectedTagIds.includes(tag.id) ? { borderColor: tag.color, backgroundColor: `${tag.color}20`, color: tag.color } : {}}
+                variant={
+                  selectedTagIds.includes(tag.id) ? "default" : "secondary"
+                }
+                className="cursor-pointer transition-opacity hover:opacity-80"
+                style={
+                  selectedTagIds.includes(tag.id)
+                    ? {
+                        borderColor: tag.color,
+                        backgroundColor: `${tag.color}20`,
+                        color: tag.color,
+                      }
+                    : {}
+                }
                 onClick={() => {
-                  setSelectedTagIds(prev => 
-                    prev.includes(tag.id) 
-                      ? prev.filter(id => id !== tag.id)
-                      : [...prev, tag.id]
+                  setSelectedTagIds((prev) =>
+                    prev.includes(tag.id)
+                      ? prev.filter((id) => id !== tag.id)
+                      : [...prev, tag.id],
                   );
                 }}
               >
@@ -157,7 +210,7 @@ export default function OperationsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedTagIds([])}
-                className="text-xs px-2 py-1 h-auto"
+                className="h-auto px-2 py-1 text-xs"
               >
                 Clear
               </Button>
@@ -169,18 +222,22 @@ export default function OperationsPage() {
       {/* Operations List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 var(--ring)"></div>
+          <div className="var(--ring) h-8 w-8 animate-spin rounded-full border-b-2"></div>
         </div>
       ) : (
         <div className="space-y-6">
           {filteredOperations.map((operation) => {
-            const engagementMap = new Map<string, { name: string; isCrownJewel: boolean; compromised: boolean }>();
+            const engagementMap = new Map<
+              string,
+              { name: string; isCrownJewel: boolean; compromised: boolean }
+            >();
             (operation.techniques ?? []).forEach((technique) => {
               (technique.targets ?? []).forEach((assignment) => {
                 if (!assignment.target) return;
                 const existing = engagementMap.get(assignment.targetId);
                 if (existing) {
-                  existing.compromised = existing.compromised || assignment.wasCompromised;
+                  existing.compromised =
+                    existing.compromised || assignment.wasCompromised;
                 } else {
                   engagementMap.set(assignment.targetId, {
                     name: assignment.target.name,
@@ -190,185 +247,225 @@ export default function OperationsPage() {
                 }
               });
             });
-            const engagedTargets = Array.from(engagementMap.entries()).map(([id, data]) => ({ id, ...data }));
-            const compromisedCount = engagedTargets.filter((target) => target.compromised).length;
+            const engagedTargets = Array.from(engagementMap.entries()).map(
+              ([id, data]) => ({ id, ...data }),
+            );
+            const compromisedCount = engagedTargets.filter(
+              (target) => target.compromised,
+            ).length;
 
             return (
-            <Link key={operation.id} href={`/operations/${operation.id}`}>
-              <Card className="transition-colors cursor-pointer relative hover:z-10 hover:ring-2 hover:ring-[var(--ring)] hover:ring-offset-1 hover:ring-offset-[var(--color-surface)]">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-[var(--color-text-primary)]">
-                          {operation.name}
-                        </h3>
-                        <Badge variant={operationStatusBadgeVariant[operation.status]}>
-                          {operationStatusLabels[operation.status]}
-                        </Badge>
+              <Link key={operation.id} href={`/operations/${operation.id}`}>
+                <Card className="relative cursor-pointer transition-colors hover:z-10 hover:ring-2 hover:ring-[var(--ring)] hover:ring-offset-1 hover:ring-offset-[var(--color-surface)]">
+                  <CardContent className="p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="mb-2 flex items-center gap-3">
+                          <h3 className="text-xl font-semibold text-[var(--color-text-primary)]">
+                            {operation.name}
+                          </h3>
+                          <Badge
+                            variant={
+                              operationStatusBadgeVariant[operation.status]
+                            }
+                          >
+                            {operationStatusLabels[operation.status]}
+                          </Badge>
+                        </div>
+                        <div className="mb-4 text-[var(--color-text-secondary)]">
+                          {operation.description}
+                        </div>
                       </div>
-                      <div className="text-[var(--color-text-secondary)] mb-4">
-                        {operation.description}
-                      </div>
+
+                      {/* Inline delete control (bottom-right), stops navigation */}
                     </div>
-                    
-                    {/* Inline delete control (bottom-right), stops navigation */}
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Left: Operation Details */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        {operation.visibility === "EVERYONE" ? (
-                          <Globe2 className="w-4 h-4 text-[var(--color-text-muted)]" />
-                        ) : (
-                          <Users className="w-4 h-4 text-[var(--color-text-muted)]" />
-                        )}
-                        <span className="text-[var(--color-text-secondary)]">
-                          <strong>Visibility:</strong>{" "}
-                          {operation.visibility === "EVERYONE"
-                            ? "Everyone"
-                            : operation.accessGroups.length > 0
-                              ? operation.accessGroups.map(({ group }) => group.name).join(", ")
-                              : "Restricted"}
-                        </span>
-                      </div>
-
-                      {operation.threatActor && (
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                      {/* Left: Operation Details */}
+                      <div className="space-y-3">
                         <div className="flex items-center gap-2 text-sm">
-                          <Target className="w-4 h-4 text-[var(--color-text-muted)]" />
-                          <span className="text-[var(--color-text-secondary)]">
-                            <strong>Emulating:</strong> {operation.threatActor.name}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {operation.targets.length > 0 && (
-                        <div className="flex items-start gap-2 text-sm">
-                          <Target className="w-4 h-4 text-[var(--color-text-muted)] mt-0.5" />
-                          <span className="text-[var(--color-text-secondary)]">
-                            <strong>Targets:</strong> {operation.targets.map(target => target.isCrownJewel ? `${target.name} (CJ)` : target.name).join(", ")}
-                          </span>
-                        </div>
-                      )}
-
-                      {engagedTargets.length > 0 && (
-                        <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-                          <Target className="w-4 h-4 text-[var(--color-text-muted)]" />
-                          <span>
-                            <strong>Engaged:</strong> {engagedTargets.length === 1 ? "1 target" : `${engagedTargets.length} targets`}
-                          </span>
-                          {compromisedCount > 0 && (
-                            <span className="text-[var(--color-error)]">
-                              <strong>Compromised:</strong> {compromisedCount === 1 ? "1 target" : `${compromisedCount} targets`}
-                            </span>
+                          {operation.visibility === "EVERYONE" ? (
+                            <Globe2 className="h-4 w-4 text-[var(--color-text-muted)]" />
+                          ) : (
+                            <Users className="h-4 w-4 text-[var(--color-text-muted)]" />
                           )}
+                          <span className="text-[var(--color-text-secondary)]">
+                            <strong>Visibility:</strong>{" "}
+                            {operation.visibility === "EVERYONE"
+                              ? "Everyone"
+                              : operation.accessGroups.length > 0
+                                ? operation.accessGroups
+                                    .map(({ group }) => group.name)
+                                    .join(", ")
+                                : "Restricted"}
+                          </span>
                         </div>
-                      )}
 
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="w-4 h-4 text-[var(--color-text-muted)]" />
-                        <span className="text-[var(--color-text-secondary)]">
-                          {operation.startDate ? new Date(operation.startDate).toLocaleDateString() : 'Not scheduled'}
-                        </span>
-                      </div>
-
-                      <div className="text-sm text-[var(--color-text-muted)]">
-                        {operation.techniqueCount ?? 0} techniques
-                      </div>
-                    </div>
-
-                    {/* Center: Tags */}
-                    <div className="space-y-2">
-                      {operation.tags.length > 0 && (
-                        <>
-                          <h4 className="text-sm font-medium text-[var(--color-text-muted)]">Tags</h4>
-                          <div className="flex flex-wrap gap-1">
-                            {operation.tags.map((tag) => (
-                              <Badge 
-                                key={tag.id} 
-                                variant="secondary"
-                                className="text-xs"
-                                style={{ borderColor: tag.color, color: tag.color }}
-                              >
-                                {tag.name}
-                              </Badge>
-                            ))}
+                        {operation.threatActor && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Target className="h-4 w-4 text-[var(--color-text-muted)]" />
+                            <span className="text-[var(--color-text-secondary)]">
+                              <strong>Emulating:</strong>{" "}
+                              {operation.threatActor.name}
+                            </span>
                           </div>
-                        </>
-                      )}
-                    </div>
+                        )}
 
-                    {/* Right: Metrics */}
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-[var(--color-text-muted)]">Metrics</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {(() => {
-                          const metrics = summarizeTechniqueOutcomeMetrics(operation.techniques ?? []);
-                          const detection = metrics[OutcomeType.DETECTION];
-                          const prevention = metrics[OutcomeType.PREVENTION];
-                          const attribution = metrics[OutcomeType.ATTRIBUTION];
+                        {operation.targets.length > 0 && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <Target className="mt-0.5 h-4 w-4 text-[var(--color-text-muted)]" />
+                            <span className="text-[var(--color-text-secondary)]">
+                              <strong>Targets:</strong>{" "}
+                              {operation.targets
+                                .map((target) =>
+                                  target.isCrownJewel
+                                    ? `${target.name} (CJ)`
+                                    : target.name,
+                                )
+                                .join(", ")}
+                            </span>
+                          </div>
+                        )}
 
-                          return (
-                            <>
-                              {detection.attempts > 0 && (
-                                <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
-                                  <Eye className="w-3 h-3" />
-                                  <span className="font-bold">{detection.successRate}%</span>
-                                </div>
-                              )}
-                              {prevention.attempts > 0 && (
-                                <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
-                                  <Shield className="w-3 h-3" />
-                                  <span className="font-bold">{prevention.successRate}%</span>
-                                </div>
-                              )}
-                              {attribution.attempts > 0 && (
-                                <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
-                                  <UserCheck className="w-3 h-3" />
-                                  <span className="font-bold">{attribution.successRate}%</span>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
+                        {engagedTargets.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                            <Target className="h-4 w-4 text-[var(--color-text-muted)]" />
+                            <span>
+                              <strong>Engaged:</strong>{" "}
+                              {engagedTargets.length === 1
+                                ? "1 target"
+                                : `${engagedTargets.length} targets`}
+                            </span>
+                            {compromisedCount > 0 && (
+                              <span className="text-[var(--color-error)]">
+                                <strong>Compromised:</strong>{" "}
+                                {compromisedCount === 1
+                                  ? "1 target"
+                                  : `${compromisedCount} targets`}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-[var(--color-text-muted)]" />
+                          <span className="text-[var(--color-text-secondary)]">
+                            {operation.startDate
+                              ? formatUTCDate(operation.startDate)
+                              : "Not scheduled"}
+                          </span>
+                        </div>
+
+                        <div className="text-sm text-[var(--color-text-muted)]">
+                          {operation.techniqueCount ?? 0} techniques
+                        </div>
+                      </div>
+
+                      {/* Center: Tags */}
+                      <div className="space-y-2">
+                        {operation.tags.length > 0 && (
+                          <>
+                            <h4 className="text-sm font-medium text-[var(--color-text-muted)]">
+                              Tags
+                            </h4>
+                            <div className="flex flex-wrap gap-1">
+                              {operation.tags.map((tag) => (
+                                <Badge
+                                  key={tag.id}
+                                  variant="secondary"
+                                  className="text-xs"
+                                  style={{
+                                    borderColor: tag.color,
+                                    color: tag.color,
+                                  }}
+                                >
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Right: Metrics */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-[var(--color-text-muted)]">
+                          Metrics
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {(() => {
+                            const metrics = summarizeTechniqueOutcomeMetrics(
+                              operation.techniques ?? [],
+                            );
+                            const detection = metrics[OutcomeType.DETECTION];
+                            const prevention = metrics[OutcomeType.PREVENTION];
+                            const attribution =
+                              metrics[OutcomeType.ATTRIBUTION];
+
+                            return (
+                              <>
+                                {detection.attempts > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
+                                    <Eye className="h-3 w-3" />
+                                    <span className="font-bold">
+                                      {detection.successRate}%
+                                    </span>
+                                  </div>
+                                )}
+                                {prevention.attempts > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
+                                    <Shield className="h-3 w-3" />
+                                    <span className="font-bold">
+                                      {prevention.successRate}%
+                                    </span>
+                                  </div>
+                                )}
+                                {attribution.attempts > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-[var(--color-accent)]">
+                                    <UserCheck className="h-3 w-3" />
+                                    <span className="font-bold">
+                                      {attribution.successRate}%
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {canModifyOperations && (
-                    <OperationCardDelete id={operation.id} />
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
+                    {canModifyOperations && (
+                      <OperationCardDelete id={operation.id} />
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
         </div>
       )}
 
       {filteredOperations.length === 0 && !isLoading && (
-        <div className="text-center py-12">
-          <div className="text-[var(--color-text-muted)] mb-4">
-            {searchTerm || statusFilter !== "ALL" 
-              ? "No operations found matching your filters" 
-              : "No operations created yet"
-            }
+        <div className="py-12 text-center">
+          <div className="mb-4 text-[var(--color-text-muted)]">
+            {searchTerm || statusFilter !== "ALL"
+              ? "No operations found matching your filters"
+              : "No operations created yet"}
           </div>
-          <Button 
-            onClick={() => setShowCreateModal(true)}
-            variant="secondary"
-          >
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={() => setShowCreateModal(true)} variant="secondary">
+            <Plus className="mr-2 h-4 w-4" />
             Create First Operation
           </Button>
         </div>
       )}
 
       {/* Create Operation Modal */}
-      <CreateOperationModal 
-        isOpen={showCreateModal} 
-        onClose={() => setShowCreateModal(false)} 
-        onSuccess={() => { void utils.operations.list.invalidate(); }} 
+      <CreateOperationModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          void utils.operations.list.invalidate();
+        }}
       />
 
       {/* Import Operations Dialog */}
@@ -395,7 +492,10 @@ export default function OperationsPage() {
 
       {/* Create from picked Threat Actor */}
       {selectedActor && (
-        <CreateOperationFromActorModal actor={selectedActor} onClose={() => setSelectedActor(null)} />
+        <CreateOperationFromActorModal
+          actor={selectedActor}
+          onClose={() => setSelectedActor(null)}
+        />
       )}
     </div>
   );
@@ -412,7 +512,13 @@ function OperationCardDelete({ id }: { id: number }) {
   });
 
   return (
-    <div className="absolute bottom-3 right-3" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+    <div
+      className="absolute right-3 bottom-3"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       <Button
         type="button"
         variant="ghost"
@@ -421,7 +527,7 @@ function OperationCardDelete({ id }: { id: number }) {
         className="text-[var(--color-text-muted)]"
         onClick={() => setOpen(true)}
       >
-        <Trash2 className="w-4 h-4" />
+        <Trash2 className="h-4 w-4" />
       </Button>
       {open && (
         <ConfirmModal

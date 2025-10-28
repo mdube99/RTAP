@@ -1,7 +1,7 @@
-import { useMemo, useCallback } from 'react';
-import { api } from '@/trpc/react';
-import type { TimeRange } from '@features/shared/time-range-filter';
-import { formatDate, formatMonthYear } from '@lib/formatDate';
+import { useMemo, useCallback } from "react";
+import { api } from "@/trpc/react";
+import type { TimeRange } from "@features/shared/time-range-filter";
+import { formatDate, formatMonthYear } from "@lib/formatDate";
 
 export interface TrendPoint {
   date: string;
@@ -16,7 +16,7 @@ export interface TrendPoint {
 }
 
 export interface OperationTimelinePoint {
-  id: number;
+  id: string;
   name: string;
   startDate: string;
   endDate: string | null;
@@ -30,8 +30,8 @@ interface Params {
 }
 
 interface PeriodParams {
-  period: '30d' | '90d' | '1y' | 'all';
-  groupBy: 'week' | 'month';
+  period: "30d" | "90d" | "1y" | "all";
+  groupBy: "week" | "month";
 }
 
 export function useTrendsData({
@@ -41,34 +41,36 @@ export function useTrendsData({
   selectedTagIds,
 }: Params) {
   const getPeriodParams = (): PeriodParams => {
-    if (range === 'custom' && customStartDate && customEndDate) {
+    if (range === "custom" && customStartDate && customEndDate) {
       const start = new Date(customStartDate);
       const end = new Date(customEndDate);
-      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const daysDiff = Math.ceil(
+        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
-      let apiPeriod: '30d' | '90d' | '1y' | 'all';
-      let groupBy: 'week' | 'month';
+      let apiPeriod: "30d" | "90d" | "1y" | "all";
+      let groupBy: "week" | "month";
 
       if (daysDiff <= 60) {
-        apiPeriod = '30d';
-        groupBy = 'week';
+        apiPeriod = "30d";
+        groupBy = "week";
       } else if (daysDiff <= 180) {
-        apiPeriod = '90d';
-        groupBy = 'month';
+        apiPeriod = "90d";
+        groupBy = "month";
       } else {
-        apiPeriod = '1y';
-        groupBy = 'month';
+        apiPeriod = "1y";
+        groupBy = "month";
       }
 
       return { period: apiPeriod, groupBy };
     }
 
     const periodMap = {
-      all: { period: 'all' as const, groupBy: 'month' as const },
-      month: { period: '30d' as const, groupBy: 'week' as const },
-      quarter: { period: '90d' as const, groupBy: 'month' as const },
-      year: { period: '1y' as const, groupBy: 'month' as const },
-      custom: { period: '30d' as const, groupBy: 'week' as const },
+      all: { period: "all" as const, groupBy: "month" as const },
+      month: { period: "30d" as const, groupBy: "week" as const },
+      quarter: { period: "90d" as const, groupBy: "month" as const },
+      year: { period: "1y" as const, groupBy: "month" as const },
+      custom: { period: "30d" as const, groupBy: "week" as const },
     } as const;
 
     return periodMap[range];
@@ -96,19 +98,20 @@ export function useTrendsData({
       tagIds: selectedTagIds.length ? selectedTagIds : undefined,
     });
 
-  const isLoading = operationsLoading || effectivenessLoading || timelineLoading;
+  const isLoading =
+    operationsLoading || effectivenessLoading || timelineLoading;
 
   const generateBuckets = (
-    period: PeriodParams['period'],
-    groupBy: PeriodParams['groupBy'],
+    period: PeriodParams["period"],
+    groupBy: PeriodParams["groupBy"],
     ops: { date: string }[],
     eff: { date: string }[],
   ) => {
     const now = new Date();
     let start = new Date(now);
-    if (period === '30d') start.setDate(now.getDate() - 30);
-    else if (period === '90d') start.setDate(now.getDate() - 90);
-    else if (period === '1y') start.setFullYear(now.getFullYear() - 1);
+    if (period === "30d") start.setDate(now.getDate() - 30);
+    else if (period === "90d") start.setDate(now.getDate() - 90);
+    else if (period === "1y") start.setFullYear(now.getFullYear() - 1);
     else {
       const allDates = [...ops.map((o) => o.date), ...eff.map((e) => e.date)];
       if (allDates.length > 0) {
@@ -118,15 +121,17 @@ export function useTrendsData({
     }
 
     const buckets: string[] = [];
-    if (groupBy === 'week') {
+    if (groupBy === "week") {
       start.setDate(start.getDate() - start.getDay());
       for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 7)) {
-        buckets.push(d.toISOString().split('T')[0]!);
+        buckets.push(d.toISOString().split("T")[0]!);
       }
     } else {
       start = new Date(start.getFullYear(), start.getMonth(), 1);
       for (let d = new Date(start); d <= now; d.setMonth(d.getMonth() + 1)) {
-        buckets.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        buckets.push(
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        );
       }
     }
     return buckets;
@@ -134,8 +139,8 @@ export function useTrendsData({
 
   const formatPeriod = useCallback(
     (periodStr: string) => {
-      if (periodParams.groupBy === 'week') return formatDate(periodStr);
-      if (periodParams.groupBy === 'month') return formatMonthYear(periodStr);
+      if (periodParams.groupBy === "week") return formatDate(periodStr);
+      if (periodParams.groupBy === "month") return formatMonthYear(periodStr);
       return periodStr;
     },
     [periodParams.groupBy],
@@ -145,7 +150,12 @@ export function useTrendsData({
     const ops = operationTrendData ?? [];
     const eff = effectivenessTrendData ?? [];
 
-    const buckets = generateBuckets(periodParams.period, periodParams.groupBy, ops, eff);
+    const buckets = generateBuckets(
+      periodParams.period,
+      periodParams.groupBy,
+      ops,
+      eff,
+    );
 
     return buckets.map((date) => {
       const opData = ops.find((d) => d.date === date);

@@ -28,7 +28,11 @@ describe("Techniques Router — read", () => {
     const caller = techniquesRouter.createCaller(ctx);
     mockDb.technique.findFirst.mockResolvedValue(mockTechnique);
     const res = await caller.getById({ id: "technique-1" });
-    expect(res).toEqual(mockTechnique);
+    expect(res).toEqual({
+      ...mockTechnique,
+      startTime: null,
+      endTime: null,
+    });
   });
 
   it("should throw error if technique not found", async () => {
@@ -43,10 +47,20 @@ describe("Techniques Router — read", () => {
   it("should list techniques for operation and paginate", async () => {
     const ctx = createTestContext(mockDb, "OPERATOR");
     const caller = techniquesRouter.createCaller(ctx);
-    mockDb.operation.findUnique.mockResolvedValue({ id: 1, visibility: "EVERYONE", accessGroups: [] });
-    const list = Array.from({ length: 11 }, (_, i) => ({ id: `technique-${i}` }));
+    mockDb.operation.findUnique.mockResolvedValue({
+      id: 1,
+      visibility: "EVERYONE",
+      accessGroups: [],
+    });
+    const list = Array.from({ length: 11 }, (_, i) => ({
+      id: `technique-${i}`,
+    }));
     mockDb.technique.findMany.mockResolvedValue(list);
-    const result = await caller.list({ operationId: 1, limit: 10, cursor: "technique-5" });
+    const result = await caller.list({
+      operationId: 1,
+      limit: 10,
+      cursor: "technique-5",
+    });
     expect(result.techniques).toHaveLength(10);
     expect(result.nextCursor).toBe("technique-10");
   });

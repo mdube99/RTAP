@@ -3,20 +3,30 @@
 import { useState } from "react";
 import { signIn as registerPasskey } from "next-auth/webauthn";
 import { api } from "@/trpc/react";
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@components/ui";
-import { parseUserWithPasskey, type UserWithPasskey } from "@features/shared/users/user-validators";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@components/ui";
+import {
+  parseUserWithPasskey,
+  type UserWithPasskey,
+} from "@features/shared/users/user-validators";
+import { formatDateTime } from "@lib/formatDate";
 
 const renderLastLogin = (lastLogin: UserWithPasskey["lastLogin"]) => {
   if (!lastLogin) return "Never";
 
   if (lastLogin instanceof Date) {
-    return lastLogin.toLocaleString();
+    return formatDateTime(lastLogin);
   }
 
   if (typeof lastLogin === "string" || typeof lastLogin === "number") {
     const parsed = new Date(lastLogin);
     if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleString();
+      return formatDateTime(parsed);
     }
   }
 
@@ -26,12 +36,17 @@ const renderLastLogin = (lastLogin: UserWithPasskey["lastLogin"]) => {
 export default function AccountPage() {
   const { data: meData, refetch, isLoading } = api.users.me.useQuery();
   const me = parseUserWithPasskey(meData);
-  const [status, setStatus] = useState<"idle" | "registering" | "success" | "error">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "registering" | "success" | "error"
+  >("idle");
 
   const handleRegisterPasskey = async () => {
     setStatus("registering");
     try {
-      const res = await registerPasskey("passkey", { action: "register", redirect: false });
+      const res = await registerPasskey("passkey", {
+        action: "register",
+        redirect: false,
+      });
       if (!res) {
         setStatus("error");
         return;
@@ -49,19 +64,31 @@ export default function AccountPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Account</h1>
+      <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
+        Account
+      </h1>
 
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Loading…</p>}
+          {isLoading && (
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Loading…
+            </p>
+          )}
           {!isLoading && me && (
             <>
-              <p className="text-sm text-[var(--color-text-secondary)]">Name: {me.name ?? "Not set"}</p>
-              <p className="text-sm text-[var(--color-text-secondary)]">Email: {me.email}</p>
-              <p className="text-sm text-[var(--color-text-secondary)]">Role: {me.role}</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Name: {me.name ?? "Not set"}
+              </p>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Email: {me.email}
+              </p>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Role: {me.role}
+              </p>
               <p className="text-sm text-[var(--color-text-secondary)]">
                 Last login: {renderLastLogin(me.lastLogin)}
               </p>
@@ -87,13 +114,19 @@ export default function AccountPage() {
               onClick={handleRegisterPasskey}
               disabled={status === "registering"}
             >
-              {status === "registering" ? "Registering…" : "Register new passkey"}
+              {status === "registering"
+                ? "Registering…"
+                : "Register new passkey"}
             </Button>
             {status === "success" && (
-              <span className="text-xs text-[var(--color-success-fg)]">Passkey registered successfully.</span>
+              <span className="text-xs text-[var(--color-success-fg)]">
+                Passkey registered successfully.
+              </span>
             )}
             {status === "error" && (
-              <span className="text-xs text-[var(--status-error-fg)]">Registration failed. Please try again.</span>
+              <span className="text-xs text-[var(--status-error-fg)]">
+                Registration failed. Please try again.
+              </span>
             )}
           </div>
         </CardContent>

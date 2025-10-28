@@ -14,7 +14,10 @@ const { db } = await import("@/server/db");
 const mockDb = vi.mocked(db, true);
 
 const createCtx = () => ({
-  session: { user: { id: "u1", role: UserRole.ADMIN }, expires: new Date().toISOString() },
+  session: {
+    user: { id: "u1", role: UserRole.ADMIN },
+    expires: new Date().toISOString(),
+  },
   db: mockDb,
   headers: new Headers(),
   requestId: "analytics-scorecard-test",
@@ -107,7 +110,10 @@ describe("Scorecard metrics", () => {
       .mockResolvedValueOnce([{ id: "t3" }]); // defensive
 
     const caller = analyticsRouter.createCaller(createCtx());
-    const res = await caller.scorecard.metrics({ start: new Date("2024-01-01"), end: new Date("2024-01-31") });
+    const res = await caller.scorecard.metrics({
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-01-31T00:00:00.000Z",
+    });
 
     expect(res.operations).toBe(2);
     expect(res.techniques).toEqual({
@@ -140,7 +146,11 @@ describe("Scorecard metrics", () => {
       },
     });
     expect(res.tactics).toBe(2);
-    expect(res.crownJewelCompromises).toEqual({ successes: 1, attempts: 2, operations: 2 });
+    expect(res.crownJewelCompromises).toEqual({
+      successes: 1,
+      attempts: 2,
+      operations: 2,
+    });
     expect(res.threatActors).toBe(2);
     expect(res.offensiveTools).toBe(2);
     expect(res.defensiveTools).toBe(1);
@@ -156,7 +166,9 @@ describe("Scorecard metrics", () => {
   });
 
   it("counts outcomes even when techniques lack a start time", async () => {
-    mockDb.operation.findMany.mockResolvedValue([{ id: 1, name: "Operation 1", threatActorId: null }]);
+    mockDb.operation.findMany.mockResolvedValue([
+      { id: 1, name: "Operation 1", threatActorId: null },
+    ]);
     mockDb.technique.findMany.mockResolvedValue([
       {
         id: "tech1",
@@ -184,13 +196,21 @@ describe("Scorecard metrics", () => {
 
     const caller = analyticsRouter.createCaller(createCtx());
     const res = await caller.scorecard.metrics({
-      start: new Date("2024-01-01"),
-      end: new Date("2024-01-31"),
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-01-31T00:00:00.000Z",
     });
 
     expect(res.techniques.executed.total).toBe(0);
-    expect(res.outcomes.detection).toEqual({ attempts: 1, successes: 1, rate: 100 });
-    expect(res.outcomes.prevention).toEqual({ attempts: 1, successes: 1, rate: 100 });
+    expect(res.outcomes.detection).toEqual({
+      attempts: 1,
+      successes: 1,
+      rate: 100,
+    });
+    expect(res.outcomes.prevention).toEqual({
+      attempts: 1,
+      successes: 1,
+      rate: 100,
+    });
     expect(res.timing.avgTimeToDetect).toBeNull();
     expect(res.timing.detectionSamples).toBe(0);
   });
