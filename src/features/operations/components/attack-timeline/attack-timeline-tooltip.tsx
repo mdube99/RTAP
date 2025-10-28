@@ -1,6 +1,7 @@
 import type { OutcomeStatus } from "@prisma/client";
 import { OutcomeType } from "@prisma/client";
 import type { TechniqueTimelineDatum } from "./types";
+import { formatDateTime as formatDateTimeUTC } from "@lib/formatDate";
 
 const tooltipStyle: React.CSSProperties = {
   backgroundColor: "var(--color-surface-elevated)",
@@ -22,15 +23,6 @@ const formatStatus = (status: OutcomeStatus) =>
     .split("_")
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
-
-const formatDateTime = (value: string | number | Date) =>
-  new Date(value).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
 interface TooltipPayloadItem {
   payload?: unknown;
@@ -77,24 +69,36 @@ export function AttackTimelineTooltip(props: AttackTimelineTooltipProps) {
 
     return (
       <div style={tooltipStyle}>
-        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{raw.techniqueName}</p>
+        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+          {raw.techniqueName}
+        </p>
         {raw.tacticName && (
-          <p className="text-xs text-[var(--color-text-muted)]">{raw.tacticName}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            {raw.tacticName}
+          </p>
         )}
         <p className="mt-2 text-xs text-[var(--color-text-secondary)]">
-          Start: {formatDateTime(raw.startDate)}
+          Start: {formatDateTimeUTC(raw.startDate)}
         </p>
         <p className="text-xs text-[var(--color-text-secondary)]">
-          {raw.endDate ? `End: ${formatDateTime(raw.endDate)}` : "End: Ongoing"}
+          {raw.endDate
+            ? `End: ${formatDateTimeUTC(raw.endDate)}`
+            : "End: Ongoing"}
         </p>
-        <p className="mt-2 text-xs text-[var(--color-text-muted)]">Execution: {success}</p>
+        <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+          Execution: {success}
+        </p>
         {raw.outcomes.length > 0 && (
           <div className="mt-2 space-y-1">
             {raw.outcomes.map((outcome) => (
-              <p key={`${outcome.type}-${outcome.id}`} className="text-xs text-[var(--color-text-secondary)]">
-                {outcomeTypeLabels[outcome.type]}: {formatStatus(outcome.status)}
+              <p
+                key={`${outcome.type}-${outcome.id}`}
+                className="text-xs text-[var(--color-text-secondary)]"
+              >
+                {outcomeTypeLabels[outcome.type]}:{" "}
+                {formatStatus(outcome.status)}
                 {outcome.detectionTime
-                  ? ` @ ${formatDateTime(outcome.detectionTime)}`
+                  ? ` @ ${formatDateTimeUTC(outcome.detectionTime)}`
                   : ""}
               </p>
             ))}

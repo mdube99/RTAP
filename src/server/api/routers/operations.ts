@@ -6,6 +6,7 @@ import { checkOperationAccess, getAccessibleOperationFilter } from "@/server/api
 import { createOperationWithValidations, updateOperationWithValidations } from "@/server/services/operationService";
 import { auditEvent, logger } from "@/server/logger";
 import { summarizeOutcomeMetrics } from "@/lib/outcomeMetrics";
+import { utcDateOptional } from "@/lib/utcValidators";
 
 // Input validation schemas
 const createOperationSchema = z.object({
@@ -14,8 +15,8 @@ const createOperationSchema = z.object({
   threatActorId: z.string().optional(),
   tagIds: z.array(z.string()).optional(),
   targetIds: z.array(z.string()).optional(),
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
+  startDate: utcDateOptional,
+  endDate: utcDateOptional,
   visibility: z.nativeEnum(OperationVisibility).optional(),
   accessGroupIds: z.array(z.string()).optional(),
 });
@@ -28,8 +29,8 @@ const updateOperationSchema = z.object({
   threatActorId: z.string().optional(),
   tagIds: z.array(z.string()).optional(),
   targetIds: z.array(z.string()).optional(),
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
+  startDate: utcDateOptional,
+  endDate: utcDateOptional,
   visibility: z.nativeEnum(OperationVisibility).optional(),
   accessGroupIds: z.array(z.string()).optional(),
 });
@@ -111,7 +112,11 @@ export const operationsRouter = createTRPCRouter({
         });
       }
 
-      return operation;
+      return {
+        ...operation,
+        startDate: operation.startDate?.toISOString() ?? null,
+        endDate: operation.endDate?.toISOString() ?? null,
+      };
     }),
 
   // List operations with filtering and pagination (all authenticated users, filtered by access)
@@ -184,6 +189,8 @@ export const operationsRouter = createTRPCRouter({
       return {
         operations: operations.map((op) => ({
           ...op,
+          startDate: op.startDate?.toISOString() ?? null,
+          endDate: op.endDate?.toISOString() ?? null,
           techniqueCount: op.techniques.length,
         })),
         nextCursor,

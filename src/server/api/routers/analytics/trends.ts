@@ -8,22 +8,34 @@ export const trendsRouter = createTRPCRouter({
   operations: viewerProcedure
     .input(
       z.object({
-        period: z.enum(["7d", "30d", "90d", "1y", "all"]).describe("Time range to analyze"),
+        period: z
+          .enum(["7d", "30d", "90d", "1y", "all"])
+          .describe("Time range to analyze"),
         groupBy: z.enum(["day", "week", "month"]).optional(),
-        tagIds: z.array(z.string()).optional().describe("Filter to operations that have any of these tag IDs"),
+        tagIds: z
+          .array(z.string())
+          .optional()
+          .describe("Filter to operations that have any of these tag IDs"),
       }),
     )
     .query(async ({ ctx, input }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
 
-      const periodDaysMap = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 } as const;
-      const periodDays = periodDaysMap[input.period as keyof typeof periodDaysMap];
+      const periodDaysMap = {
+        "7d": 7,
+        "30d": 30,
+        "90d": 90,
+        "1y": 365,
+      } as const;
+      const periodDays =
+        periodDaysMap[input.period as keyof typeof periodDaysMap];
       const startDate =
         input.period === "all"
           ? new Date(0)
           : (() => {
               const d = new Date();
-              d.setDate(d.getDate() - periodDays);
+              d.setUTCDate(d.getUTCDate() - periodDays);
+              d.setUTCHours(0, 0, 0, 0);
               return d;
             })();
 
@@ -31,7 +43,9 @@ export const trendsRouter = createTRPCRouter({
         where: {
           ...accessFilter,
           status: "COMPLETED",
-          ...(input.tagIds?.length ? { tags: { some: { id: { in: input.tagIds } } } } : {}),
+          ...(input.tagIds?.length
+            ? { tags: { some: { id: { in: input.tagIds } } } }
+            : {}),
           endDate: { gte: startDate },
         },
         select: { id: true, status: true, endDate: true },
@@ -43,7 +57,9 @@ export const trendsRouter = createTRPCRouter({
           operation: {
             ...accessFilter,
             status: "COMPLETED",
-            ...(input.tagIds?.length ? { tags: { some: { id: { in: input.tagIds } } } } : {}),
+            ...(input.tagIds?.length
+              ? { tags: { some: { id: { in: input.tagIds } } } }
+              : {}),
           },
           endTime: { not: null, gte: startDate },
         },
@@ -52,22 +68,47 @@ export const trendsRouter = createTRPCRouter({
       });
 
       const grouping =
-        input.groupBy ?? (input.period === "7d" ? "day" : input.period === "30d" ? "week" : "month");
-      const grouped = new Map<string, { date: string; total: number; active: number; completed: number; planning: number; cancelled: number; techniqueCount: number }>();
+        input.groupBy ??
+        (input.period === "7d"
+          ? "day"
+          : input.period === "30d"
+            ? "week"
+            : "month");
+      const grouped = new Map<
+        string,
+        {
+          date: string;
+          total: number;
+          active: number;
+          completed: number;
+          planning: number;
+          cancelled: number;
+          techniqueCount: number;
+        }
+      >();
 
       const makeKey = (date: Date) => {
         if (grouping === "day") return date.toISOString().split("T")[0] ?? "";
         if (grouping === "week") {
           const weekStart = new Date(date);
-          weekStart.setDate(date.getDate() - date.getDay());
+          weekStart.setUTCDate(date.getUTCDate() - date.getUTCDay());
           return weekStart.toISOString().split("T")[0] ?? "";
         }
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
       };
 
       operations.forEach((op) => {
         const key = makeKey(new Date(op.endDate!));
-        if (!grouped.has(key)) grouped.set(key, { date: key, total: 0, active: 0, completed: 0, planning: 0, cancelled: 0, techniqueCount: 0 });
+        if (!grouped.has(key))
+          grouped.set(key, {
+            date: key,
+            total: 0,
+            active: 0,
+            completed: 0,
+            planning: 0,
+            cancelled: 0,
+            techniqueCount: 0,
+          });
         const g = grouped.get(key)!;
         g.total++;
         const status = op.status.toLowerCase();
@@ -79,11 +120,22 @@ export const trendsRouter = createTRPCRouter({
 
       techniques.forEach((tech) => {
         const key = makeKey(new Date(tech.endTime!));
-        if (!grouped.has(key)) grouped.set(key, { date: key, total: 0, active: 0, completed: 0, planning: 0, cancelled: 0, techniqueCount: 0 });
+        if (!grouped.has(key))
+          grouped.set(key, {
+            date: key,
+            total: 0,
+            active: 0,
+            completed: 0,
+            planning: 0,
+            cancelled: 0,
+            techniqueCount: 0,
+          });
         grouped.get(key)!.techniqueCount++;
       });
 
-      return Array.from(grouped.values()).sort((a, b) => a.date.localeCompare(b.date));
+      return Array.from(grouped.values()).sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
     }),
 
   // Effectiveness trends over time
@@ -97,8 +149,14 @@ export const trendsRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
-      const periodDaysMap = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 } as const;
-      const periodDays = periodDaysMap[input.period as keyof typeof periodDaysMap];
+      const periodDaysMap = {
+        "7d": 7,
+        "30d": 30,
+        "90d": 90,
+        "1y": 365,
+      } as const;
+      const periodDays =
+        periodDaysMap[input.period as keyof typeof periodDaysMap];
       const startDate =
         input.period === "all"
           ? new Date(0)
@@ -115,7 +173,9 @@ export const trendsRouter = createTRPCRouter({
             operation: {
               ...accessFilter,
               status: "COMPLETED",
-              ...(input.tagIds?.length ? { tags: { some: { id: { in: input.tagIds } } } } : {}),
+              ...(input.tagIds?.length
+                ? { tags: { some: { id: { in: input.tagIds } } } }
+                : {}),
             },
           },
         },
@@ -125,34 +185,57 @@ export const trendsRouter = createTRPCRouter({
       });
 
       const grouping =
-        input.groupBy ?? (input.period === "7d" ? "day" : input.period === "30d" ? "week" : "month");
-      const grouped = new Map<string, {
-        date: string;
-        detectionAttempts: number; detectionSuccesses: number;
-        preventionAttempts: number; preventionSuccesses: number;
-        attributionAttempts: number; attributionSuccesses: number;
-        totalDetectionTime: number; detectionTimeCount: number;
-        totalAttributionTime: number; attributionTimeCount: number;
-      }>();
+        input.groupBy ??
+        (input.period === "7d"
+          ? "day"
+          : input.period === "30d"
+            ? "week"
+            : "month");
+      const grouped = new Map<
+        string,
+        {
+          date: string;
+          detectionAttempts: number;
+          detectionSuccesses: number;
+          preventionAttempts: number;
+          preventionSuccesses: number;
+          attributionAttempts: number;
+          attributionSuccesses: number;
+          totalDetectionTime: number;
+          detectionTimeCount: number;
+          totalAttributionTime: number;
+          attributionTimeCount: number;
+        }
+      >();
 
       const makeKey = (d: Date) => {
         if (grouping === "day") return d.toISOString().split("T")[0] ?? "";
-        if (grouping === "week") { const s = new Date(d); s.setDate(d.getDate() - d.getDay()); return s.toISOString().split("T")[0] ?? ""; }
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        if (grouping === "week") {
+          const s = new Date(d);
+          s.setUTCDate(d.getUTCDate() - d.getUTCDay());
+          return s.toISOString().split("T")[0] ?? "";
+        }
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
       };
 
       outcomes.forEach((outcome) => {
         if (outcome.status === "NOT_APPLICABLE") return;
         const end = new Date(outcome.technique.endTime!);
         const key = makeKey(end);
-        if (!grouped.has(key)) grouped.set(key, {
-          date: key,
-          detectionAttempts: 0, detectionSuccesses: 0,
-          preventionAttempts: 0, preventionSuccesses: 0,
-          attributionAttempts: 0, attributionSuccesses: 0,
-          totalDetectionTime: 0, detectionTimeCount: 0,
-          totalAttributionTime: 0, attributionTimeCount: 0,
-        });
+        if (!grouped.has(key))
+          grouped.set(key, {
+            date: key,
+            detectionAttempts: 0,
+            detectionSuccesses: 0,
+            preventionAttempts: 0,
+            preventionSuccesses: 0,
+            attributionAttempts: 0,
+            attributionSuccesses: 0,
+            totalDetectionTime: 0,
+            detectionTimeCount: 0,
+            totalAttributionTime: 0,
+            attributionTimeCount: 0,
+          });
         const g = grouped.get(key)!;
         if (outcome.type === OutcomeType.DETECTION) {
           g.detectionAttempts++;
@@ -161,8 +244,13 @@ export const trendsRouter = createTRPCRouter({
             if (outcome.detectionTime && outcome.technique.startTime) {
               const start = new Date(outcome.technique.startTime);
               const det = new Date(outcome.detectionTime);
-              const m = Math.round((det.getTime() - start.getTime()) / (1000 * 60));
-              if (m >= 0) { g.totalDetectionTime += m; g.detectionTimeCount++; }
+              const m = Math.round(
+                (det.getTime() - start.getTime()) / (1000 * 60),
+              );
+              if (m >= 0) {
+                g.totalDetectionTime += m;
+                g.detectionTimeCount++;
+              }
             }
           }
         } else if (outcome.type === OutcomeType.PREVENTION) {
@@ -175,8 +263,13 @@ export const trendsRouter = createTRPCRouter({
             if (outcome.detectionTime && outcome.technique.startTime) {
               const start = new Date(outcome.technique.startTime);
               const det = new Date(outcome.detectionTime);
-              const m = Math.round((det.getTime() - start.getTime()) / (1000 * 60));
-              if (m >= 0) { g.totalAttributionTime += m; g.attributionTimeCount++; }
+              const m = Math.round(
+                (det.getTime() - start.getTime()) / (1000 * 60),
+              );
+              if (m >= 0) {
+                g.totalAttributionTime += m;
+                g.attributionTimeCount++;
+              }
             }
           }
         }
@@ -185,11 +278,28 @@ export const trendsRouter = createTRPCRouter({
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((g) => ({
           date: g.date,
-          detectionRate: g.detectionAttempts > 0 ? Math.round((g.detectionSuccesses / g.detectionAttempts) * 100) : 0,
-          preventionRate: g.preventionAttempts > 0 ? Math.round((g.preventionSuccesses / g.preventionAttempts) * 100) : 0,
-          attributionRate: g.attributionAttempts > 0 ? Math.round((g.attributionSuccesses / g.attributionAttempts) * 100) : 0,
-          avgTimeToDetect: g.detectionTimeCount > 0 ? Math.round(g.totalDetectionTime / g.detectionTimeCount) : undefined,
-          avgTimeToAttribute: g.attributionTimeCount > 0 ? Math.round(g.totalAttributionTime / g.attributionTimeCount) : undefined,
+          detectionRate:
+            g.detectionAttempts > 0
+              ? Math.round((g.detectionSuccesses / g.detectionAttempts) * 100)
+              : 0,
+          preventionRate:
+            g.preventionAttempts > 0
+              ? Math.round((g.preventionSuccesses / g.preventionAttempts) * 100)
+              : 0,
+          attributionRate:
+            g.attributionAttempts > 0
+              ? Math.round(
+                  (g.attributionSuccesses / g.attributionAttempts) * 100,
+                )
+              : 0,
+          avgTimeToDetect:
+            g.detectionTimeCount > 0
+              ? Math.round(g.totalDetectionTime / g.detectionTimeCount)
+              : undefined,
+          avgTimeToAttribute:
+            g.attributionTimeCount > 0
+              ? Math.round(g.totalAttributionTime / g.attributionTimeCount)
+              : undefined,
         }));
     }),
 
@@ -198,35 +308,35 @@ export const trendsRouter = createTRPCRouter({
       z.object({
         period: z.enum(["30d", "90d", "1y", "all"]),
         tagIds: z.array(z.string()).optional(),
+        topN: z.number().optional().default(10),
       }),
     )
     .query(async ({ ctx, input }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
-      const periodDaysMap = { "30d": 30, "90d": 90, "1y": 365 } as const;
-      const now = new Date();
-
-      let startBoundary: Date | null = null;
-      if (input.period !== "all") {
-        const days = periodDaysMap[input.period];
-        const start = new Date(now);
-        start.setDate(start.getDate() - days);
-        startBoundary = start;
-      }
-      const endBoundary = now;
+      const periodDaysMap = {
+        "30d": 30,
+        "90d": 90,
+        "1y": 365,
+      } as const;
+      const periodDays =
+        periodDaysMap[input.period as keyof typeof periodDaysMap];
+      const startDate =
+        input.period === "all"
+          ? new Date(0)
+          : (() => {
+              const d = new Date();
+              d.setUTCDate(d.getUTCDate() - periodDays);
+              d.setUTCHours(0, 0, 0, 0);
+              return d;
+            })();
 
       const operations = await ctx.db.operation.findMany({
         where: {
           ...accessFilter,
-          startDate: {
-            not: null,
-            lte: endBoundary,
-          },
-          ...(startBoundary
-            ? {
-                OR: [{ endDate: null }, { endDate: { gte: startBoundary } }],
-              }
+          ...(input.tagIds?.length
+            ? { tags: { some: { id: { in: input.tagIds } } } }
             : {}),
-          ...(input.tagIds?.length ? { tags: { some: { id: { in: input.tagIds } } } } : {}),
+          startDate: { gte: startDate },
         },
         select: {
           id: true,
@@ -234,70 +344,15 @@ export const trendsRouter = createTRPCRouter({
           startDate: true,
           endDate: true,
         },
-        orderBy: { startDate: "asc" },
+        orderBy: { startDate: "desc" },
+        take: input.topN,
       });
 
-      return operations
-        .filter((operation): operation is typeof operation & { startDate: Date } => Boolean(operation.startDate))
-        .map((operation) => ({
-          id: operation.id,
-          name: operation.name,
-          startDate: operation.startDate.toISOString(),
-          endDate: operation.endDate ? operation.endDate.toISOString() : null,
-        }));
+      return operations.map((op) => ({
+        id: String(op.id),
+        name: op.name,
+        startDate: op.startDate?.toISOString() ?? new Date().toISOString(),
+        endDate: op.endDate?.toISOString() ?? null,
+      }));
     }),
-
-  // Technique usage patterns (top-N)
-  techniques: viewerProcedure
-    .input(
-      z.object({ period: z.enum(["7d", "30d", "90d", "1y", "all"]), topN: z.number().min(5).max(20).default(10) })
-    )
-    .query(async ({ ctx, input }) => {
-      const accessFilter = getAccessibleOperationFilter(ctx);
-      const periodDaysMap = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 } as const;
-      const periodDays = periodDaysMap[input.period as keyof typeof periodDaysMap];
-      const startDate =
-        input.period === "all"
-          ? new Date(0)
-          : (() => {
-              const d = new Date();
-              d.setDate(d.getDate() - periodDays);
-              return d;
-            })();
-
-      const techniques = await ctx.db.technique.findMany({
-        where: { operation: { ...accessFilter, createdAt: { gte: startDate } } },
-        include: { mitreTechnique: { include: { tactic: true } }, outcomes: true },
-      });
-
-      const techniqueMap = new Map<string, { id: string; name: string; tactic: string; usage: number; outcomes: { type: OutcomeType }[] }>();
-      techniques.forEach((technique) => {
-        if (!technique.mitreTechniqueId) return;
-        const key = technique.mitreTechniqueId;
-        if (!techniqueMap.has(key)) {
-          techniqueMap.set(key, {
-            id: technique.mitreTechniqueId,
-            name: technique.mitreTechnique?.name ?? "Unknown",
-            tactic: technique.mitreTechnique?.tactic?.name ?? "Unknown",
-            usage: 0,
-            outcomes: [],
-          });
-        }
-        const data = techniqueMap.get(key)!;
-        data.usage++;
-        data.outcomes.push(...technique.outcomes);
-      });
-
-      const sorted = Array.from(techniqueMap.values())
-        .map((technique) => {
-          const detected = technique.outcomes.filter((o) => o.type === OutcomeType.DETECTION).length;
-          const total = technique.outcomes.length;
-          return { id: technique.id, name: technique.name, tactic: technique.tactic, usage: technique.usage, detectionRate: total > 0 ? Math.round((detected / total) * 100) : 0 };
-        })
-        .sort((a, b) => b.usage - a.usage)
-        .slice(0, input.topN);
-
-      return sorted;
-    }),
-
 });

@@ -1,4 +1,10 @@
-import type { Prisma, PrismaClient, UserRole, OperationStatus, OperationVisibility } from "@prisma/client";
+import type {
+  Prisma,
+  PrismaClient,
+  UserRole,
+  OperationStatus,
+  OperationVisibility,
+} from "@prisma/client";
 import { TRPCError } from "@trpc/server";
 
 export interface OperationCreateInput {
@@ -7,10 +13,10 @@ export interface OperationCreateInput {
   threatActorId?: string;
   tagIds?: string[];
   targetIds?: string[];
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: string | null;
+  endDate?: string | null;
   visibility?: OperationVisibility;
-  accessGroupIds?: string[]; // applicable when visibility = GROUPS_ONLY
+  accessGroupIds?: string[];
 }
 
 export async function createOperationWithValidations(params: {
@@ -19,13 +25,19 @@ export async function createOperationWithValidations(params: {
   input: OperationCreateInput;
 }) {
   const { db, user, input } = params;
-  const { tagIds, targetIds, accessGroupIds, visibility, ...operationData } = input;
+  const { tagIds, targetIds, accessGroupIds, visibility, ...operationData } =
+    input;
 
   // Verify threat actor exists if provided
   if (input.threatActorId) {
-    const threatActor = await db.threatActor.findUnique({ where: { id: input.threatActorId } });
+    const threatActor = await db.threatActor.findUnique({
+      where: { id: input.threatActorId },
+    });
     if (!threatActor) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Threat actor not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Threat actor not found",
+      });
     }
   }
 
@@ -35,15 +47,23 @@ export async function createOperationWithValidations(params: {
       where: { id: { in: tagIds } },
     });
     if (existingTags.length !== tagIds.length) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "One or more tags not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "One or more tags not found",
+      });
     }
   }
 
   // Verify targets exist if provided
   if (targetIds && targetIds.length > 0) {
-    const existingTargets = await db.target.findMany({ where: { id: { in: targetIds } } });
+    const existingTargets = await db.target.findMany({
+      where: { id: { in: targetIds } },
+    });
     if (existingTargets.length !== targetIds.length) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "One or more targets not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "One or more targets not found",
+      });
     }
   }
 
@@ -52,11 +72,20 @@ export async function createOperationWithValidations(params: {
   const effectiveVisibility: OperationVisibility = visibility ?? "EVERYONE";
   if (effectiveVisibility === "GROUPS_ONLY") {
     if (!accessGroupIds || accessGroupIds.length === 0) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "At least one group must be provided when visibility is GROUPS_ONLY" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message:
+          "At least one group must be provided when visibility is GROUPS_ONLY",
+      });
     }
-    const groups = await db.group.findMany({ where: { id: { in: accessGroupIds } } });
+    const groups = await db.group.findMany({
+      where: { id: { in: accessGroupIds } },
+    });
     if (groups.length !== accessGroupIds.length) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "One or more groups not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "One or more groups not found",
+      });
     }
 
     if (user.role !== "ADMIN") {
@@ -69,7 +98,8 @@ export async function createOperationWithValidations(params: {
       if (membershipCount === 0) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "You must belong to at least one selected group to restrict visibility",
+          message:
+            "You must belong to at least one selected group to restrict visibility",
         });
       }
     }
@@ -79,11 +109,21 @@ export async function createOperationWithValidations(params: {
   return db.operation.create({
     data: {
       ...operationData,
+      startDate: operationData.startDate
+        ? new Date(operationData.startDate)
+        : undefined,
+      endDate: operationData.endDate
+        ? new Date(operationData.endDate)
+        : undefined,
       createdById: user.id,
       visibility: effectiveVisibility,
-      accessGroups: accessGroupsCreate ? { create: accessGroupsCreate } : undefined,
+      accessGroups: accessGroupsCreate
+        ? { create: accessGroupsCreate }
+        : undefined,
       tags: tagIds ? { connect: tagIds.map((id) => ({ id })) } : undefined,
-      targets: targetIds ? { connect: targetIds.map((id) => ({ id })) } : undefined,
+      targets: targetIds
+        ? { connect: targetIds.map((id) => ({ id })) }
+        : undefined,
     },
     include: {
       createdBy: { select: { id: true, name: true, email: true } },
@@ -110,10 +150,10 @@ export interface OperationUpdateDTO {
   threatActorId?: string;
   tagIds?: string[];
   targetIds?: string[];
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: string | null;
+  endDate?: string | null;
   visibility?: OperationVisibility;
-  accessGroupIds?: string[]; // when provided, replaces the set
+  accessGroupIds?: string[];
 }
 
 export async function updateOperationWithValidations(params: {
@@ -122,7 +162,8 @@ export async function updateOperationWithValidations(params: {
   input: OperationUpdateDTO;
 }) {
   const { db, user, input } = params;
-  const { id, tagIds, targetIds, accessGroupIds, visibility, ...updateData } = input;
+  const { id, tagIds, targetIds, accessGroupIds, visibility, ...updateData } =
+    input;
 
   const existingOperation = await db.operation.findUnique({
     where: { id },
@@ -133,9 +174,14 @@ export async function updateOperationWithValidations(params: {
   }
 
   if (input.threatActorId) {
-    const threatActor = await db.threatActor.findUnique({ where: { id: input.threatActorId } });
+    const threatActor = await db.threatActor.findUnique({
+      where: { id: input.threatActorId },
+    });
     if (!threatActor) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Threat actor not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Threat actor not found",
+      });
     }
   }
 
@@ -144,36 +190,61 @@ export async function updateOperationWithValidations(params: {
       where: { id: { in: tagIds } },
     });
     if (existingTags.length !== tagIds.length) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "One or more tags not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "One or more tags not found",
+      });
     }
   }
 
   if (targetIds && targetIds.length > 0) {
-    const existingTargets = await db.target.findMany({ where: { id: { in: targetIds } } });
+    const existingTargets = await db.target.findMany({
+      where: { id: { in: targetIds } },
+    });
     if (existingTargets.length !== targetIds.length) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "One or more targets not found" });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "One or more targets not found",
+      });
     }
   }
 
   const updatePayload: Prisma.OperationUpdateInput = {};
   if (updateData.name !== undefined) updatePayload.name = updateData.name;
-  if (updateData.description !== undefined) updatePayload.description = updateData.description;
+  if (updateData.description !== undefined)
+    updatePayload.description = updateData.description;
   if (updateData.status !== undefined) updatePayload.status = updateData.status;
-  if (updateData.threatActorId !== undefined) updatePayload.threatActor = { connect: { id: updateData.threatActorId } };
-  if (updateData.startDate !== undefined) updatePayload.startDate = updateData.startDate;
-  if (updateData.endDate !== undefined) updatePayload.endDate = updateData.endDate;
-  if (tagIds !== undefined) updatePayload.tags = { set: tagIds.map((id) => ({ id })) };
-  if (targetIds !== undefined) updatePayload.targets = { set: targetIds.map((id) => ({ id })) };
+  if (updateData.threatActorId !== undefined)
+    updatePayload.threatActor = { connect: { id: updateData.threatActorId } };
+  if (updateData.startDate !== undefined)
+    updatePayload.startDate = updateData.startDate
+      ? new Date(updateData.startDate)
+      : null;
+  if (updateData.endDate !== undefined)
+    updatePayload.endDate = updateData.endDate
+      ? new Date(updateData.endDate)
+      : null;
+  if (tagIds !== undefined)
+    updatePayload.tags = { set: tagIds.map((id) => ({ id })) };
+  if (targetIds !== undefined)
+    updatePayload.targets = { set: targetIds.map((id) => ({ id })) };
   const nextVisibility = visibility ?? existingOperation.visibility;
-  let resultingGroupIds: string[] = existingOperation.accessGroups.map((ag) => ag.groupId);
+  let resultingGroupIds: string[] = existingOperation.accessGroups.map(
+    (ag) => ag.groupId,
+  );
 
   if (accessGroupIds !== undefined) {
     resultingGroupIds = accessGroupIds;
 
     if (accessGroupIds.length > 0) {
-      const groups = await db.group.findMany({ where: { id: { in: accessGroupIds } } });
+      const groups = await db.group.findMany({
+        where: { id: { in: accessGroupIds } },
+      });
       if (groups.length !== accessGroupIds.length) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "One or more groups not found" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "One or more groups not found",
+        });
       }
     }
 
@@ -186,7 +257,8 @@ export async function updateOperationWithValidations(params: {
   if (nextVisibility === "GROUPS_ONLY" && resultingGroupIds.length === 0) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "At least one group must be provided when visibility is GROUPS_ONLY",
+      message:
+        "At least one group must be provided when visibility is GROUPS_ONLY",
     });
   }
 
@@ -200,7 +272,8 @@ export async function updateOperationWithValidations(params: {
     if (membershipCount === 0) {
       throw new TRPCError({
         code: "FORBIDDEN",
-        message: "You must belong to at least one selected group to restrict visibility",
+        message:
+          "You must belong to at least one selected group to restrict visibility",
       });
     }
   }
@@ -216,7 +289,13 @@ export async function updateOperationWithValidations(params: {
       tags: true,
       targets: true,
       accessGroups: { include: { group: true } },
-      techniques: { include: { mitreTechnique: true, mitreSubTechnique: true, outcomes: true } },
+      techniques: {
+        include: {
+          mitreTechnique: true,
+          mitreSubTechnique: true,
+          outcomes: true,
+        },
+      },
     },
   });
 }

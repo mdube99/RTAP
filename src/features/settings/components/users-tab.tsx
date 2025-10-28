@@ -8,14 +8,22 @@ import ConfirmModal from "@components/ui/confirm-modal";
 import SettingsHeader from "./settings-header";
 import InlineActions from "@components/ui/inline-actions";
 import { UserRole } from "@prisma/client";
-import { isUserRole, userWithPasskeySchema, type UserWithPasskey } from "@features/shared/users/user-validators";
+import {
+  isUserRole,
+  userWithPasskeySchema,
+  type UserWithPasskey,
+} from "@features/shared/users/user-validators";
+import { formatDateTime } from "@lib/formatDate";
 
 const EMPTY_USERS: UserWithPasskey[] = [];
 const loginLinkSchema = z.object({
   url: z.string(),
   expires: z.union([z.date(), z.string(), z.number()]),
 });
-const createUserResponseSchema = z.object({ user: userWithPasskeySchema, loginLink: loginLinkSchema });
+const createUserResponseSchema = z.object({
+  user: userWithPasskeySchema,
+  loginLink: loginLinkSchema,
+});
 
 interface PendingLink {
   email: string;
@@ -26,7 +34,9 @@ interface PendingLink {
 const toIsoString = (value: Date | string | number) => {
   if (typeof value === "number") {
     const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toISOString();
+    return Number.isNaN(parsed.getTime())
+      ? String(value)
+      : parsed.toISOString();
   }
 
   return value instanceof Date ? value.toISOString() : value;
@@ -35,9 +45,13 @@ const toIsoString = (value: Date | string | number) => {
 export default function UsersTab() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithPasskey | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<UserWithPasskey | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<UserWithPasskey | null>(
+    null,
+  );
   const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
 
   // Queries
   const usersQuery = api.users.list.useQuery();
@@ -95,7 +109,11 @@ export default function UsersTab() {
     },
   });
 
-  const handleCreate = async (data: { name: string; email: string; role: UserRole }) => {
+  const handleCreate = async (data: {
+    name: string;
+    email: string;
+    role: UserRole;
+  }) => {
     try {
       await createMutation.mutateAsync(data);
     } catch {
@@ -103,7 +121,10 @@ export default function UsersTab() {
     }
   };
 
-  const handleUpdate = (id: string, data: { name: string; email: string; role: UserRole }) => {
+  const handleUpdate = (
+    id: string,
+    data: { name: string; email: string; role: UserRole },
+  ) => {
     updateMutation.mutate({ id, ...data });
   };
 
@@ -143,13 +164,13 @@ export default function UsersTab() {
     if (!lastLogin) return "Never";
 
     if (lastLogin instanceof Date) {
-      return lastLogin.toLocaleString();
+      return formatDateTime(lastLogin);
     }
 
     if (typeof lastLogin === "string" || typeof lastLogin === "number") {
       const parsed = new Date(lastLogin);
       if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toLocaleString();
+        return formatDateTime(parsed);
       }
     }
 
@@ -159,7 +180,9 @@ export default function UsersTab() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-[var(--color-text-secondary)]">Loading users...</div>
+        <div className="text-[var(--color-text-secondary)]">
+          Loading users...
+        </div>
       </div>
     );
   }
@@ -170,17 +193,28 @@ export default function UsersTab() {
 
       {pendingLink && (
         <Card className="border border-[var(--color-border)] bg-[var(--color-surface-elevated)]">
-          <CardContent className="p-4 space-y-3">
+          <CardContent className="space-y-3 p-4">
             <div>
-              <p className="text-sm text-[var(--color-text-secondary)]">One-time login link for {pendingLink.email}</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                One-time login link for {pendingLink.email}
+              </p>
               <Input readOnly value={pendingLink.url} className="mt-2" />
             </div>
             <div className="flex items-center gap-3">
-              <Button type="button" variant="secondary" size="sm" onClick={copyLink}>
-                {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy link"}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={copyLink}
+              >
+                {copyStatus === "copied"
+                  ? "Copied"
+                  : copyStatus === "error"
+                    ? "Copy failed"
+                    : "Copy link"}
               </Button>
               <span className="text-xs text-[var(--color-text-muted)]">
-                Expires at {new Date(pendingLink.expires).toLocaleString()}
+                Expires at {formatDateTime(pendingLink.expires)}
               </span>
             </div>
           </CardContent>
@@ -197,24 +231,36 @@ export default function UsersTab() {
                     <h4 className="font-medium text-[var(--color-text-primary)]">
                       {user.name ?? "Unnamed User"}
                     </h4>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-[var(--radius-sm)] border ${getRoleColor(user.role)}`}>
+                    <span
+                      className={`rounded-[var(--radius-sm)] border px-2 py-1 text-xs font-medium ${getRoleColor(user.role)}`}
+                    >
                       {user.role}
                     </span>
                   </div>
-                  <p className="text-sm text-[var(--color-text-secondary)]">{user.email}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    {user.email}
+                  </p>
                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                    Last login: {renderLastLogin(user.lastLogin)} • Passkeys {user.passkeyCount > 0 ? "Enrolled" : "Not enrolled"}
+                    Last login: {renderLastLogin(user.lastLogin)} • Passkeys{" "}
+                    {user.passkeyCount > 0 ? "Enrolled" : "Not enrolled"}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <InlineActions onEdit={() => setEditingUser(user)} onDelete={() => setConfirmDelete(user)} />
+                  <InlineActions
+                    onEdit={() => setEditingUser(user)}
+                    onDelete={() => setConfirmDelete(user)}
+                  />
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleIssueLink(user)}
-                    disabled={loginLinkMutation.isPending && loginLinkMutation.variables?.id === user.id}
+                    disabled={
+                      loginLinkMutation.isPending &&
+                      loginLinkMutation.variables?.id === user.id
+                    }
                   >
-                    {loginLinkMutation.isPending && loginLinkMutation.variables?.id === user.id
+                    {loginLinkMutation.isPending &&
+                    loginLinkMutation.variables?.id === user.id
                       ? "Generating..."
                       : "Generate login link"}
                   </Button>
@@ -225,7 +271,7 @@ export default function UsersTab() {
         ))}
 
         {users.length === 0 && (
-          <div className="text-center py-12 text-[var(--color-text-secondary)]">
+          <div className="py-12 text-center text-[var(--color-text-secondary)]">
             No users found. Add your first user to get started.
           </div>
         )}
@@ -277,10 +323,18 @@ interface UserModalProps {
   isLoading: boolean;
 }
 
-function UserModal({ title, initialData, onSubmit, onCancel, isLoading }: UserModalProps) {
+function UserModal({
+  title,
+  initialData,
+  onSubmit,
+  onCancel,
+  isLoading,
+}: UserModalProps) {
   const [name, setName] = useState(initialData?.name ?? "");
   const [email, setEmail] = useState(initialData?.email ?? "");
-  const [role, setRole] = useState<UserRole>(initialData?.role ?? UserRole.VIEWER);
+  const [role, setRole] = useState<UserRole>(
+    initialData?.role ?? UserRole.VIEWER,
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,10 +342,12 @@ function UserModal({ title, initialData, onSubmit, onCancel, isLoading }: UserMo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <Card variant="elevated" className="w-full max-w-md">
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">{title}</h3>
+          <h3 className="mb-4 text-lg font-semibold text-[var(--color-text-primary)]">
+            {title}
+          </h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -336,12 +392,18 @@ function UserModal({ title, initialData, onSubmit, onCancel, isLoading }: UserMo
                     setRole(value);
                   }
                 }}
-                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text-primary)] focus:border-transparent focus:ring-2 focus:ring-[var(--ring)] focus:outline-none"
                 required
               >
-                <option value={UserRole.VIEWER}>Viewer - Read-only access</option>
-                <option value={UserRole.OPERATOR}>Operator - Create and manage operations</option>
-                <option value={UserRole.ADMIN}>Admin - Full system access</option>
+                <option value={UserRole.VIEWER}>
+                  Viewer - Read-only access
+                </option>
+                <option value={UserRole.OPERATOR}>
+                  Operator - Create and manage operations
+                </option>
+                <option value={UserRole.ADMIN}>
+                  Admin - Full system access
+                </option>
               </select>
             </div>
 

@@ -3,11 +3,15 @@ import type { Prisma } from "@prisma/client";
 import { OutcomeType } from "@prisma/client";
 import { createTRPCRouter, viewerProcedure } from "@/server/api/trpc";
 import { getAccessibleOperationFilter } from "@/server/api/access";
+import { utcDateString } from "@/lib/utcValidators";
 
 export const coverageRouter = createTRPCRouter({
   // Executed sub-techniques across accessible operations (for UI expansion)
   subTechniqueUsage: viewerProcedure
-    .meta({ description: "List executed MITRE sub-techniques across accessible operations" })
+    .meta({
+      description:
+        "List executed MITRE sub-techniques across accessible operations",
+    })
     .query(async ({ ctx }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
       const techniques = await ctx.db.technique.findMany({
@@ -23,18 +27,24 @@ export const coverageRouter = createTRPCRouter({
         const id = t.mitreSubTechniqueId!;
         counts.set(id, (counts.get(id) ?? 0) + 1);
       });
-      return Array.from(counts.entries()).map(([subTechniqueId, count]) => ({ subTechniqueId, count }));
+      return Array.from(counts.entries()).map(([subTechniqueId, count]) => ({
+        subTechniqueId,
+        count,
+      }));
     }),
 
   // MITRE Tactic Coverage Heatmap
   byTactic: viewerProcedure
-    .meta({ description: "Get MITRE ATT&CK tactic coverage metrics with detection/prevention/attribution rates" })
+    .meta({
+      description:
+        "Get MITRE ATT&CK tactic coverage metrics with detection/prevention/attribution rates",
+    })
     .input(
       z.object({
-        start: z.date(),
-        end: z.date(),
+        start: utcDateString,
+        end: utcDateString,
         tagIds: z.array(z.string()).optional(),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
@@ -45,13 +55,20 @@ export const coverageRouter = createTRPCRouter({
           ? { tags: { some: { id: { in: input.tagIds } } } }
           : {}),
         OR: [
-          { startDate: { gte: input.start, lte: input.end } },
-          { startDate: null, createdAt: { gte: input.start, lte: input.end } },
+          {
+            startDate: { gte: new Date(input.start), lte: new Date(input.end) },
+          },
+          {
+            startDate: null,
+            createdAt: { gte: new Date(input.start), lte: new Date(input.end) },
+          },
         ],
       };
 
       // 1) Pre-seed with ALL MITRE tactics so we always return the full dataset
-      const allTactics = await ctx.db.mitreTactic.findMany({ orderBy: { id: "asc" } });
+      const allTactics = await ctx.db.mitreTactic.findMany({
+        orderBy: { id: "asc" },
+      });
       const tacticMap = new Map<
         string,
         {
@@ -130,29 +147,44 @@ export const coverageRouter = createTRPCRouter({
         });
       });
 
-      const list = Array.from(tacticMap.values())
-        .map((t) => ({
-          tacticId: t.tacticId,
-          tacticName: t.tacticName,
-          plannedCount: t.plannedTechniques.size,
-          executedCount: t.executedTechniques.size,
-          executedAttemptCount: t.executedAttempts,
-          operationCount: t.operations.size,
-          detectionRate: t.detectionAttempts > 0 ? Math.round((t.detectionSuccesses / t.detectionAttempts) * 100) : null,
-          detectionCount: t.detectionAttempts,
-          preventionRate: t.preventionAttempts > 0 ? Math.round((t.preventionSuccesses / t.preventionAttempts) * 100) : null,
-          preventionCount: t.preventionAttempts,
-          attributionRate: t.attributionAttempts > 0 ? Math.round((t.attributionSuccesses / t.attributionAttempts) * 100) : null,
-          attributionCount: t.attributionAttempts,
-        }));
+      const list = Array.from(tacticMap.values()).map((t) => ({
+        tacticId: t.tacticId,
+        tacticName: t.tacticName,
+        plannedCount: t.plannedTechniques.size,
+        executedCount: t.executedTechniques.size,
+        executedAttemptCount: t.executedAttempts,
+        operationCount: t.operations.size,
+        detectionRate:
+          t.detectionAttempts > 0
+            ? Math.round((t.detectionSuccesses / t.detectionAttempts) * 100)
+            : null,
+        detectionCount: t.detectionAttempts,
+        preventionRate:
+          t.preventionAttempts > 0
+            ? Math.round((t.preventionSuccesses / t.preventionAttempts) * 100)
+            : null,
+        preventionCount: t.preventionAttempts,
+        attributionRate:
+          t.attributionAttempts > 0
+            ? Math.round((t.attributionSuccesses / t.attributionAttempts) * 100)
+            : null,
+        attributionCount: t.attributionAttempts,
+      }));
       // Sort using canonical order
-      const { tacticOrderIndex } = await import('@/lib/mitreOrder');
-      return list.sort((a, b) => tacticOrderIndex(a.tacticId) - tacticOrderIndex(b.tacticId) || a.tacticId.localeCompare(b.tacticId));
+      const { tacticOrderIndex } = await import("@/lib/mitreOrder");
+      return list.sort(
+        (a, b) =>
+          tacticOrderIndex(a.tacticId) - tacticOrderIndex(b.tacticId) ||
+          a.tacticId.localeCompare(b.tacticId),
+      );
     }),
 
   // MITRE Sub-technique metrics (for expanded analytics view)
   subTechniqueMetrics: viewerProcedure
-    .meta({ description: "Get execution metrics for MITRE sub-techniques across accessible operations" })
+    .meta({
+      description:
+        "Get execution metrics for MITRE sub-techniques across accessible operations",
+    })
     .query(async ({ ctx }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
       const executed = await ctx.db.technique.findMany({
@@ -161,7 +193,9 @@ export const coverageRouter = createTRPCRouter({
           mitreSubTechniqueId: { not: null },
         },
         include: {
-          mitreSubTechnique: { include: { technique: { include: { tactic: true } } } },
+          mitreSubTechnique: {
+            include: { technique: { include: { tactic: true } } },
+          },
           outcomes: true,
         },
       });
@@ -227,11 +261,20 @@ export const coverageRouter = createTRPCRouter({
         tacticId: a.tacticId,
         tacticName: a.tacticName,
         executionCount: a.count,
-        detectionRate: a.detectionTotal > 0 ? Math.round((a.detectionSuccess / a.detectionTotal) * 100) : 0,
+        detectionRate:
+          a.detectionTotal > 0
+            ? Math.round((a.detectionSuccess / a.detectionTotal) * 100)
+            : 0,
         detectionAvailable: a.detectionTotal > 0,
-        preventionRate: a.preventionTotal > 0 ? Math.round((a.preventionSuccess / a.preventionTotal) * 100) : 0,
+        preventionRate:
+          a.preventionTotal > 0
+            ? Math.round((a.preventionSuccess / a.preventionTotal) * 100)
+            : 0,
         preventionAvailable: a.preventionTotal > 0,
-        attributionRate: a.attributionTotal > 0 ? Math.round((a.attributionSuccess / a.attributionTotal) * 100) : 0,
+        attributionRate:
+          a.attributionTotal > 0
+            ? Math.round((a.attributionSuccess / a.attributionTotal) * 100)
+            : 0,
         attributionAvailable: a.attributionTotal > 0,
       }));
     }),
@@ -253,14 +296,19 @@ export const coverageRouter = createTRPCRouter({
       });
 
       return threatActors.map((actor) => {
-        const actorTechniqueIds = new Set(actor.mitreTechniques.map((t) => t.id));
+        const actorTechniqueIds = new Set(
+          actor.mitreTechniques.map((t) => t.id),
+        );
         const testedTechniqueIds = new Set<string>();
         let totalOperations = 0;
 
         operations.forEach((operation) => {
           let hasActorTechnique = false;
           operation.techniques.forEach((technique) => {
-            if (technique.mitreTechniqueId && actorTechniqueIds.has(technique.mitreTechniqueId)) {
+            if (
+              technique.mitreTechniqueId &&
+              actorTechniqueIds.has(technique.mitreTechniqueId)
+            ) {
               testedTechniqueIds.add(technique.mitreTechniqueId);
               hasActorTechnique = true;
             }
@@ -268,9 +316,12 @@ export const coverageRouter = createTRPCRouter({
           if (hasActorTechnique) totalOperations++;
         });
 
-        const coverage = actorTechniqueIds.size > 0
-          ? Math.round((testedTechniqueIds.size / actorTechniqueIds.size) * 100)
-          : 0;
+        const coverage =
+          actorTechniqueIds.size > 0
+            ? Math.round(
+                (testedTechniqueIds.size / actorTechniqueIds.size) * 100,
+              )
+            : 0;
 
         return {
           id: actor.id,
@@ -287,7 +338,14 @@ export const coverageRouter = createTRPCRouter({
 
   // Defensive Effectiveness Coverage
   byDefensive: viewerProcedure
-    .input(z.object({ operationId: z.number().optional(), period: z.string().optional() }).optional())
+    .input(
+      z
+        .object({
+          operationId: z.number().optional(),
+          period: z.string().optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
 
@@ -295,23 +353,48 @@ export const coverageRouter = createTRPCRouter({
       if (input?.operationId) filters.id = input.operationId;
 
       const outcomes = await ctx.db.outcome.findMany({
-        include: { technique: { include: { operation: { select: { id: true, status: true } } } } },
+        include: {
+          technique: {
+            include: { operation: { select: { id: true, status: true } } },
+          },
+        },
         where: { technique: { operation: filters } },
       });
 
       const totalOutcomes = outcomes.length;
-      const detectedCount = outcomes.filter((o) => o.type === OutcomeType.DETECTION).length;
-      const preventedCount = outcomes.filter((o) => o.type === OutcomeType.PREVENTION).length;
-      const attributedCount = outcomes.filter((o) => o.type === OutcomeType.ATTRIBUTION).length;
-      const notDetectedCount = outcomes.filter((o) => o.type !== OutcomeType.DETECTION).length;
-      const notPreventedCount = outcomes.filter((o) => o.type !== OutcomeType.PREVENTION).length;
-      const notAttributedCount = outcomes.filter((o) => o.type !== OutcomeType.ATTRIBUTION).length;
+      const detectedCount = outcomes.filter(
+        (o) => o.type === OutcomeType.DETECTION,
+      ).length;
+      const preventedCount = outcomes.filter(
+        (o) => o.type === OutcomeType.PREVENTION,
+      ).length;
+      const attributedCount = outcomes.filter(
+        (o) => o.type === OutcomeType.ATTRIBUTION,
+      ).length;
+      const notDetectedCount = outcomes.filter(
+        (o) => o.type !== OutcomeType.DETECTION,
+      ).length;
+      const notPreventedCount = outcomes.filter(
+        (o) => o.type !== OutcomeType.PREVENTION,
+      ).length;
+      const notAttributedCount = outcomes.filter(
+        (o) => o.type !== OutcomeType.ATTRIBUTION,
+      ).length;
 
       return {
         total: totalOutcomes,
-        detection: totalOutcomes > 0 ? Math.round((detectedCount / totalOutcomes) * 100) : 0,
-        prevention: totalOutcomes > 0 ? Math.round((preventedCount / totalOutcomes) * 100) : 0,
-        attribution: totalOutcomes > 0 ? Math.round((attributedCount / totalOutcomes) * 100) : 0,
+        detection:
+          totalOutcomes > 0
+            ? Math.round((detectedCount / totalOutcomes) * 100)
+            : 0,
+        prevention:
+          totalOutcomes > 0
+            ? Math.round((preventedCount / totalOutcomes) * 100)
+            : 0,
+        attribution:
+          totalOutcomes > 0
+            ? Math.round((attributedCount / totalOutcomes) * 100)
+            : 0,
         breakdown: {
           detected: detectedCount,
           prevented: preventedCount,
@@ -325,7 +408,10 @@ export const coverageRouter = createTRPCRouter({
 
   // Comprehensive technique metrics
   techniqueMetrics: viewerProcedure
-    .meta({ description: "Get comprehensive execution metrics for all MITRE ATT&CK techniques" })
+    .meta({
+      description:
+        "Get comprehensive execution metrics for all MITRE ATT&CK techniques",
+    })
     .query(async ({ ctx }) => {
       const accessFilter = getAccessibleOperationFilter(ctx);
 
@@ -338,7 +424,9 @@ export const coverageRouter = createTRPCRouter({
         where: { operation: accessFilter },
       });
 
-      const allMitreTechniques = await ctx.db.mitreTechnique.findMany({ include: { tactic: true } });
+      const allMitreTechniques = await ctx.db.mitreTechnique.findMany({
+        include: { tactic: true },
+      });
 
       const techniqueMetrics = new Map<
         string,
@@ -398,7 +486,9 @@ export const coverageRouter = createTRPCRouter({
         // Count every occurrence for total count
         allCounts.set(techniqueId, (allCounts.get(techniqueId) ?? 0) + 1);
         // Only executed (started) contribute to rates and executed flag
-        const isExecuted = (technique.startTime !== null && technique.startTime !== undefined) || (technique.outcomes.length > 0);
+        const isExecuted =
+          (technique.startTime !== null && technique.startTime !== undefined) ||
+          technique.outcomes.length > 0;
         if (!isExecuted) return;
         executedAny.set(techniqueId, true);
         if (!techniqueExecutions.has(techniqueId)) {
@@ -424,7 +514,8 @@ export const coverageRouter = createTRPCRouter({
               if (outcome.status === "PREVENTED") execution.preventionSuccess++;
             } else if (outcome.type === "ATTRIBUTION") {
               execution.attributionTotal++;
-              if (outcome.status === "ATTRIBUTED") execution.attributionSuccess++;
+              if (outcome.status === "ATTRIBUTED")
+                execution.attributionSuccess++;
             }
           }
         });
@@ -433,17 +524,38 @@ export const coverageRouter = createTRPCRouter({
       techniqueExecutions.forEach((execution, techniqueId) => {
         const metrics = techniqueMetrics.get(techniqueId);
         if (metrics) {
-          metrics.executionCount = allCounts.get(techniqueId) ?? execution.count;
+          metrics.executionCount =
+            allCounts.get(techniqueId) ?? execution.count;
           metrics.executed = executedAny.get(techniqueId) === true;
           metrics.detectionAvailable = execution.detectionTotal > 0;
           metrics.preventionAvailable = execution.preventionTotal > 0;
           metrics.attributionAvailable = execution.attributionTotal > 0;
-          metrics.detectionRate = metrics.detectionAvailable ? Math.round((execution.detectionSuccess / execution.detectionTotal) * 100) : 0;
-          metrics.preventionRate = metrics.preventionAvailable ? Math.round((execution.preventionSuccess / execution.preventionTotal) * 100) : 0;
-          metrics.attributionRate = metrics.attributionAvailable ? Math.round((execution.attributionSuccess / execution.attributionTotal) * 100) : 0;
-          const rates = [metrics.detectionRate, metrics.preventionRate, metrics.attributionRate];
+          metrics.detectionRate = metrics.detectionAvailable
+            ? Math.round(
+                (execution.detectionSuccess / execution.detectionTotal) * 100,
+              )
+            : 0;
+          metrics.preventionRate = metrics.preventionAvailable
+            ? Math.round(
+                (execution.preventionSuccess / execution.preventionTotal) * 100,
+              )
+            : 0;
+          metrics.attributionRate = metrics.attributionAvailable
+            ? Math.round(
+                (execution.attributionSuccess / execution.attributionTotal) *
+                  100,
+              )
+            : 0;
+          const rates = [
+            metrics.detectionRate,
+            metrics.preventionRate,
+            metrics.attributionRate,
+          ];
           const valid = rates.filter((r) => r > 0);
-          metrics.avgEffectiveness = valid.length > 0 ? Math.round(valid.reduce((s, r) => s + r, 0) / valid.length) : 0;
+          metrics.avgEffectiveness =
+            valid.length > 0
+              ? Math.round(valid.reduce((s, r) => s + r, 0) / valid.length)
+              : 0;
         }
       });
 

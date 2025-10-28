@@ -19,16 +19,25 @@ interface ScorecardMetricsContextValue {
   isFetching: boolean;
 }
 
-const ScorecardMetricsContext = createContext<ScorecardMetricsContextValue | null>(null);
+const ScorecardMetricsContext =
+  createContext<ScorecardMetricsContextValue | null>(null);
 
-export function ScorecardMetricsProvider({ start, end, tagIds, children }: ProviderProps) {
-  const { data, isLoading, isFetching } = api.analytics.scorecard.metrics.useQuery(
-    { start, end, tagIds },
-    { enabled: Boolean(start && end) }
-  );
+export function ScorecardMetricsProvider({
+  start,
+  end,
+  tagIds,
+  children,
+}: ProviderProps) {
+  const { data, isLoading, isFetching } =
+    api.analytics.scorecard.metrics.useQuery(
+      { start: start.toISOString(), end: end.toISOString(), tagIds },
+      { enabled: Boolean(start && end) },
+    );
 
   return (
-    <ScorecardMetricsContext.Provider value={{ metrics: data ?? null, isLoading, isFetching }}>
+    <ScorecardMetricsContext.Provider
+      value={{ metrics: data ?? null, isLoading, isFetching }}
+    >
       {children}
     </ScorecardMetricsContext.Provider>
   );
@@ -37,7 +46,9 @@ export function ScorecardMetricsProvider({ start, end, tagIds, children }: Provi
 export function useScorecardMetrics() {
   const ctx = useContext(ScorecardMetricsContext);
   if (!ctx) {
-    throw new Error("useScorecardMetrics must be used within a ScorecardMetricsProvider");
+    throw new Error(
+      "useScorecardMetrics must be used within a ScorecardMetricsProvider",
+    );
   }
   return ctx;
 }

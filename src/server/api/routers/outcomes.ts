@@ -1,9 +1,16 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, viewerProcedure } from "@/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  viewerProcedure,
+} from "@/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { OutcomeType, OutcomeStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
-import { checkOperationAccess, getAccessibleOperationFilter } from "@/server/api/access";
+import {
+  checkOperationAccess,
+  getAccessibleOperationFilter,
+} from "@/server/api/access";
 import {
   bulkCreateOutcomes,
   defaultOutcomeInclude,
@@ -11,13 +18,14 @@ import {
   updateOutcome as updateOutcomeService,
   deleteOutcome as deleteOutcomeService,
 } from "@/server/services/outcomeService";
+import { utcDateOptional } from "@/lib/utcValidators";
 
 // Input validation schemas
 const createOutcomeSchema = z.object({
   techniqueId: z.string(),
   type: z.nativeEnum(OutcomeType),
   status: z.nativeEnum(OutcomeStatus),
-  detectionTime: z.date().optional(),
+  detectionTime: utcDateOptional,
   notes: z.string().optional(),
   screenshotUrl: z.string().optional(),
   logData: z.string().optional(),
@@ -29,7 +37,7 @@ const updateOutcomeSchema = z.object({
   id: z.string(),
   type: z.nativeEnum(OutcomeType).optional(),
   status: z.nativeEnum(OutcomeStatus).optional(),
-  detectionTime: z.date().optional(),
+  detectionTime: utcDateOptional,
   notes: z.string().optional(),
   screenshotUrl: z.string().optional(),
   logData: z.string().optional(),
@@ -69,7 +77,11 @@ export const outcomesRouter = createTRPCRouter({
         });
       }
 
-      const hasAccess = await checkOperationAccess(ctx, technique.operationId, "modify");
+      const hasAccess = await checkOperationAccess(
+        ctx,
+        technique.operationId,
+        "modify",
+      );
       if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -79,7 +91,6 @@ export const outcomesRouter = createTRPCRouter({
 
       return createOutcomeService(ctx.db, input);
     }),
-
 
   // Update outcome
   update: protectedProcedure
@@ -101,7 +112,11 @@ export const outcomesRouter = createTRPCRouter({
         });
       }
 
-      const hasAccess = await checkOperationAccess(ctx, outcome.technique.operationId, "modify");
+      const hasAccess = await checkOperationAccess(
+        ctx,
+        outcome.technique.operationId,
+        "modify",
+      );
       if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -132,7 +147,11 @@ export const outcomesRouter = createTRPCRouter({
         });
       }
 
-      const hasAccess = await checkOperationAccess(ctx, outcome.technique.operationId, "modify");
+      const hasAccess = await checkOperationAccess(
+        ctx,
+        outcome.technique.operationId,
+        "modify",
+      );
       if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -143,7 +162,6 @@ export const outcomesRouter = createTRPCRouter({
       return deleteOutcomeService(ctx.db, input.id);
     }),
 
-
   // Bulk create outcomes for multiple techniques
   bulkCreate: protectedProcedure
     .input(
@@ -152,7 +170,9 @@ export const outcomesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const techniqueIds = Array.from(new Set(input.outcomes.map((o) => o.techniqueId)));
+      const techniqueIds = Array.from(
+        new Set(input.outcomes.map((o) => o.techniqueId)),
+      );
       const techniques = await ctx.db.technique.findMany({
         where: { id: { in: techniqueIds } },
         select: { id: true, operationId: true },
@@ -165,10 +185,16 @@ export const outcomesRouter = createTRPCRouter({
         });
       }
 
-      const operationIds = Array.from(new Set(techniques.map((t) => t.operationId)));
+      const operationIds = Array.from(
+        new Set(techniques.map((t) => t.operationId)),
+      );
       await Promise.all(
         operationIds.map(async (operationId) => {
-          const hasAccess = await checkOperationAccess(ctx, operationId, "modify");
+          const hasAccess = await checkOperationAccess(
+            ctx,
+            operationId,
+            "modify",
+          );
           if (!hasAccess) {
             throw new TRPCError({
               code: "FORBIDDEN",
@@ -216,7 +242,10 @@ export const outcomesRouter = createTRPCRouter({
       }
 
       return {
-        outcomes,
+        outcomes: outcomes.map((o) => ({
+          ...o,
+          detectionTime: o.detectionTime?.toISOString() ?? null,
+        })),
         nextCursor,
       };
     }),
@@ -244,6 +273,9 @@ export const outcomesRouter = createTRPCRouter({
         });
       }
 
-      return outcome;
+      return {
+        ...outcome,
+        detectionTime: outcome.detectionTime?.toISOString() ?? null,
+      };
     }),
 });

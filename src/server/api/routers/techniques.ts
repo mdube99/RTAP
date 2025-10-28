@@ -1,7 +1,14 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, viewerProcedure } from "@/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  viewerProcedure,
+} from "@/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { checkOperationAccess, getAccessibleOperationFilter } from "@/server/api/access";
+import {
+  checkOperationAccess,
+  getAccessibleOperationFilter,
+} from "@/server/api/access";
 import {
   createTechniqueWithValidations,
   ensureTargetsAssignableToOperation,
@@ -9,6 +16,7 @@ import {
 } from "@/server/services/techniqueService";
 import { auditEvent, logger } from "@/server/logger";
 import type { Prisma } from "@prisma/client";
+import { utcDateOptional } from "@/lib/utcValidators";
 
 // Input validation schemas
 const targetAssignmentSchema = z.object({
@@ -25,8 +33,8 @@ const createTechniqueSchema = z.object({
     .transform((value) => value ?? ""),
   mitreTechniqueId: z.string().optional(),
   mitreSubTechniqueId: z.string().optional(),
-  startTime: z.date().optional(),
-  endTime: z.date().optional(),
+  startTime: utcDateOptional,
+  endTime: utcDateOptional,
   sourceIp: z.string().optional(),
   targetSystem: z.string().optional(),
   toolIds: z.array(z.string()).optional(),
@@ -39,9 +47,8 @@ const updateTechniqueSchema = z.object({
   description: z.string().trim().optional(),
   mitreTechniqueId: z.string().optional(),
   mitreSubTechniqueId: z.string().nullable().optional(),
-  // Allow nulls to explicitly clear times during update
-  startTime: z.date().nullable().optional(),
-  endTime: z.date().nullable().optional(),
+  startTime: utcDateOptional,
+  endTime: utcDateOptional,
   sourceIp: z.string().optional(),
   targetSystem: z.string().optional(),
   toolIds: z.array(z.string()).optional(),
@@ -66,7 +73,11 @@ export const techniquesRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createTechniqueSchema)
     .mutation(async ({ ctx, input }) => {
-      const hasAccess = await checkOperationAccess(ctx, input.operationId, "modify");
+      const hasAccess = await checkOperationAccess(
+        ctx,
+        input.operationId,
+        "modify",
+      );
       if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -75,7 +86,11 @@ export const techniquesRouter = createTRPCRouter({
       }
 
       const { toolIds, targets, ...rest } = input;
-      const created = await createTechniqueWithValidations(ctx.db, { ...rest, toolIds, targets });
+      const created = await createTechniqueWithValidations(ctx.db, {
+        ...rest,
+        toolIds,
+        targets,
+      });
       logger.info(
         auditEvent(ctx, "sec.technique.create", {
           techniqueId: created.id,
@@ -88,7 +103,6 @@ export const techniquesRouter = createTRPCRouter({
       return created;
     }),
 
-
   // Update technique
   update: protectedProcedure
     .input(updateTechniqueSchema)
@@ -98,7 +112,9 @@ export const techniquesRouter = createTRPCRouter({
       // Check if technique exists
       const existingTechnique = await ctx.db.technique.findUnique({
         where: { id },
-        include: { operation: { include: { targets: { select: { id: true } } } } },
+        include: {
+          operation: { include: { targets: { select: { id: true } } } },
+        },
       });
 
       if (!existingTechnique) {
@@ -108,7 +124,11 @@ export const techniquesRouter = createTRPCRouter({
         });
       }
 
-      const hasAccess = await checkOperationAccess(ctx, existingTechnique.operationId, "modify");
+      const hasAccess = await checkOperationAccess(
+        ctx,
+        existingTechnique.operationId,
+        "modify",
+      );
       if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -167,11 +187,15 @@ export const techniquesRouter = createTRPCRouter({
       }
 
       // Validate end time is not before start time
-      if (input.startTime && input.endTime && input.endTime < input.startTime) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "End time cannot be before start time",
-        });
+      if (input.startTime && input.endTime) {
+        const start = new Date(input.startTime);
+        const end = new Date(input.endTime);
+        if (end < start) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "End time cannot be before start time",
+          });
+        }
       }
 
       // Prepare update data with relationship updates
@@ -184,7 +208,8 @@ export const techniquesRouter = createTRPCRouter({
       } = { ...updateData };
 
       if (targets !== undefined) {
-        const normalizedAssignments = normalizeTechniqueTargetAssignments(targets);
+        const normalizedAssignments =
+          normalizeTechniqueTargetAssignments(targets);
         await ensureTargetsAssignableToOperation(
           ctx.db,
           existingTechnique.operationId,
@@ -196,10 +221,12 @@ export const techniquesRouter = createTRPCRouter({
           deleteMany: {},
           ...(normalizedAssignments.length
             ? {
-                create: normalizedAssignments.map(({ targetId, wasCompromised }) => ({
-                  targetId,
-                  wasCompromised: wasCompromised ?? false,
-                })),
+                create: normalizedAssignments.map(
+                  ({ targetId, wasCompromised }) => ({
+                    targetId,
+                    wasCompromised: wasCompromised ?? false,
+                  }),
+                ),
               }
             : {}),
         };
@@ -245,7 +272,11 @@ export const techniquesRouter = createTRPCRouter({
         }),
         "Technique updated",
       );
-      return updated;
+      return {
+        ...updated,
+        startTime: updated.startTime?.toISOString() ?? null,
+        endTime: updated.endTime?.toISOString() ?? null,
+      };
     }),
 
   // Delete technique
@@ -264,7 +295,11 @@ export const techniquesRouter = createTRPCRouter({
         });
       }
 
-      const hasAccess = await checkOperationAccess(ctx, technique.operationId, "modify");
+      const hasAccess = await checkOperationAccess(
+        ctx,
+        technique.operationId,
+        "modify",
+      );
       if (!hasAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -287,13 +322,14 @@ export const techniquesRouter = createTRPCRouter({
       return deleted;
     }),
 
-
   // Reorder techniques within an operation
   reorder: protectedProcedure
-    .input(z.object({
-      operationId: z.number(),
-      techniqueIds: z.array(z.string()), // Array of technique IDs in new order
-    }))
+    .input(
+      z.object({
+        operationId: z.number(),
+        techniqueIds: z.array(z.string()), // Array of technique IDs in new order
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const { operationId, techniqueIds } = input;
 
@@ -319,9 +355,11 @@ export const techniquesRouter = createTRPCRouter({
       }
 
       // Verify all technique IDs belong to this operation
-      const existingTechniqueIds = operation.techniques.map(t => t.id);
-      const invalidIds = techniqueIds.filter(id => !existingTechniqueIds.includes(id));
-      
+      const existingTechniqueIds = operation.techniques.map((t) => t.id);
+      const invalidIds = techniqueIds.filter(
+        (id) => !existingTechniqueIds.includes(id),
+      );
+
       if (invalidIds.length > 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -335,8 +373,8 @@ export const techniquesRouter = createTRPCRouter({
           ctx.db.technique.update({
             where: { id: techniqueId },
             data: { sortOrder: index },
-          })
-        )
+          }),
+        ),
       );
       logger.info(
         auditEvent(ctx, "sec.technique.reorder", {
@@ -397,7 +435,11 @@ export const techniquesRouter = createTRPCRouter({
       }
 
       return {
-        techniques,
+        techniques: techniques.map((t) => ({
+          ...t,
+          startTime: t.startTime?.toISOString() ?? null,
+          endTime: t.endTime?.toISOString() ?? null,
+        })),
         nextCursor,
       };
     }),
@@ -441,6 +483,10 @@ export const techniquesRouter = createTRPCRouter({
         });
       }
 
-      return technique;
+      return {
+        ...technique,
+        startTime: technique.startTime?.toISOString() ?? null,
+        endTime: technique.endTime?.toISOString() ?? null,
+      };
     }),
 });

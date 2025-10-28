@@ -12,7 +12,9 @@ export type CoverageTechnique = Prisma.TechniqueGetPayload<{
 
 export type TechniqueWithSubTechnique = Prisma.TechniqueGetPayload<{
   include: {
-    mitreSubTechnique: { include: { technique: { include: { tactic: true } } } };
+    mitreSubTechnique: {
+      include: { technique: { include: { tactic: true } } };
+    };
     outcomes: { include: { tools: true; logSources: true } };
     targets: { include: { target: true } };
   };
@@ -20,7 +22,9 @@ export type TechniqueWithSubTechnique = Prisma.TechniqueGetPayload<{
 
 const defaultTimestamp = () => new Date("2024-01-01T00:00:00.000Z");
 
-export function buildMitreTactic(overrides: Partial<MitreTactic> = {}): MitreTactic {
+export function buildMitreTactic(
+  overrides: Partial<MitreTactic> = {},
+): MitreTactic {
   const now = defaultTimestamp();
   const base: MitreTactic = {
     id: "TA0001",
@@ -74,7 +78,9 @@ export function buildCoverageTechnique(
     description: tacticOverrides?.description ?? "Default tactic description",
     url: tacticOverrides?.url ?? null,
   });
-  const tactic = tacticOverrides ? { ...tacticBase, ...tacticOverrides } : tacticBase;
+  const tactic = tacticOverrides
+    ? { ...tacticBase, ...tacticOverrides }
+    : tacticBase;
 
   const targets: CoverageTechnique["targets"] = overrides.targets ?? [];
 
@@ -89,7 +95,8 @@ export function buildCoverageTechnique(
     targets,
     executedSuccessfully: overrides.executedSuccessfully ?? null,
     operationId,
-    mitreTechniqueId: overrides.mitreTechniqueId ?? overrides.mitreTechnique?.id ?? "T1566",
+    mitreTechniqueId:
+      overrides.mitreTechniqueId ?? overrides.mitreTechnique?.id ?? "T1566",
     mitreSubTechniqueId: overrides.mitreSubTechniqueId ?? null,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
@@ -101,7 +108,8 @@ export function buildCoverageTechnique(
     mitreTechnique: {
       id: overrides.mitreTechnique?.id ?? overrides.mitreTechniqueId ?? "T1566",
       name: overrides.mitreTechnique?.name ?? "Technique",
-      description: overrides.mitreTechnique?.description ?? "Technique description",
+      description:
+        overrides.mitreTechnique?.description ?? "Technique description",
       url: overrides.mitreTechnique?.url ?? null,
       tacticId: overrides.mitreTechnique?.tacticId ?? tactic.id,
       createdAt: overrides.mitreTechnique?.createdAt ?? now,
@@ -113,7 +121,9 @@ export function buildCoverageTechnique(
 
   return {
     ...base,
-    operation: overrides.operation ? { ...base.operation, ...overrides.operation } : base.operation,
+    operation: overrides.operation
+      ? { ...base.operation, ...overrides.operation }
+      : base.operation,
     mitreTechnique: overrides.mitreTechnique
       ? {
           ...base.mitreTechnique,
@@ -134,19 +144,33 @@ export function buildTechniqueWithSubTechnique(
 ): TechniqueWithSubTechnique {
   const now = defaultTimestamp();
   const techniqueId = overrides.id ?? "technique-1";
-  const subTechniqueId = overrides.mitreSubTechniqueId ?? overrides.mitreSubTechnique?.id ?? "T2000.001";
+  const subTechniqueId =
+    overrides.mitreSubTechniqueId ??
+    overrides.mitreSubTechnique?.id ??
+    "T2000.001";
   const tacticOverrides = overrides.mitreSubTechnique?.technique?.tactic;
   const tacticBase = buildMitreTactic({
-    id: tacticOverrides?.id ?? overrides.mitreSubTechnique?.technique?.tacticId ?? "TA0001",
-    name: tacticOverrides?.name ?? overrides.mitreSubTechnique?.technique?.tactic?.name ?? "Initial Access",
+    id:
+      tacticOverrides?.id ??
+      overrides.mitreSubTechnique?.technique?.tacticId ??
+      "TA0001",
+    name:
+      tacticOverrides?.name ??
+      overrides.mitreSubTechnique?.technique?.tactic?.name ??
+      "Initial Access",
     description: tacticOverrides?.description ?? "Default tactic description",
     url: tacticOverrides?.url ?? null,
   });
-  const tactic = tacticOverrides ? { ...tacticBase, ...tacticOverrides } : tacticBase;
+  const tactic = tacticOverrides
+    ? { ...tacticBase, ...tacticOverrides }
+    : tacticBase;
 
   const techniqueOverrides = overrides.mitreSubTechnique?.technique;
   const techniqueBase = {
-    id: techniqueOverrides?.id ?? overrides.mitreSubTechnique?.techniqueId ?? "T2000",
+    id:
+      techniqueOverrides?.id ??
+      overrides.mitreSubTechnique?.techniqueId ??
+      "T2000",
     name: techniqueOverrides?.name ?? "Base Technique",
     description: techniqueOverrides?.description ?? "Technique description",
     url: techniqueOverrides?.url ?? null,
@@ -159,12 +183,15 @@ export function buildTechniqueWithSubTechnique(
   const subTechniqueBase = {
     id: subTechniqueId,
     name: overrides.mitreSubTechnique?.name ?? "Sub Technique",
-    description: overrides.mitreSubTechnique?.description ?? "Sub technique description",
+    description:
+      overrides.mitreSubTechnique?.description ?? "Sub technique description",
     url: overrides.mitreSubTechnique?.url ?? null,
     techniqueId: overrides.mitreSubTechnique?.techniqueId ?? "T2000",
     createdAt: overrides.mitreSubTechnique?.createdAt ?? now,
     updatedAt: overrides.mitreSubTechnique?.updatedAt ?? now,
-    technique: techniqueOverrides ? { ...techniqueBase, ...techniqueOverrides } : techniqueBase,
+    technique: techniqueOverrides
+      ? { ...techniqueBase, ...techniqueOverrides }
+      : techniqueBase,
   };
 
   const targets: TechniqueWithSubTechnique["targets"] = overrides.targets ?? [];
@@ -201,7 +228,10 @@ export function buildTechniqueWithSubTechnique(
                   ...overrides.mitreSubTechnique.technique,
                   tactic:
                     overrides.mitreSubTechnique.technique?.tactic !== undefined
-                      ? { ...tactic, ...overrides.mitreSubTechnique.technique.tactic }
+                      ? {
+                          ...tactic,
+                          ...overrides.mitreSubTechnique.technique.tactic,
+                        }
                       : tactic,
                 }
               : techniqueBase,

@@ -28,7 +28,10 @@ describe("Outcomes Router — read", () => {
       const caller = outcomesRouter.createCaller(ctx);
       mockDb.outcome.findFirst.mockResolvedValue(mockOutcome);
       const result = await caller.getById({ id: "outcome-1" });
-      expect(result).toEqual(mockOutcome);
+      expect(result).toEqual({
+        ...mockOutcome,
+        detectionTime: mockOutcome.detectionTime.toISOString(),
+      });
     });
 
     it("should throw error if outcome not found", async () => {
@@ -47,8 +50,17 @@ describe("Outcomes Router — read", () => {
       const caller = outcomesRouter.createCaller(ctx);
       const mockOutcomes = [mockOutcome];
       mockDb.outcome.findMany.mockResolvedValue(mockOutcomes);
-      const result = await caller.list({ techniqueId: "technique-1", type: "DETECTION", status: "DETECTED" });
-      expect(result.outcomes).toEqual(mockOutcomes);
+      const result = await caller.list({
+        techniqueId: "technique-1",
+        type: "DETECTION",
+        status: "DETECTED",
+      });
+      expect(result.outcomes).toEqual(
+        mockOutcomes.map((o) => ({
+          ...o,
+          detectionTime: o.detectionTime.toISOString(),
+        })),
+      );
       expect(result.nextCursor).toBeUndefined();
     });
 
@@ -63,7 +75,10 @@ describe("Outcomes Router — read", () => {
     it("should handle pagination", async () => {
       const ctx = createTestContext(mockDb, "OPERATOR");
       const caller = outcomesRouter.createCaller(ctx);
-      const outcomes = Array.from({ length: 11 }, (_, i) => ({ ...mockOutcome, id: `outcome-${i}` }));
+      const outcomes = Array.from({ length: 11 }, (_, i) => ({
+        ...mockOutcome,
+        id: `outcome-${i}`,
+      }));
       mockDb.outcome.findMany.mockResolvedValue(outcomes);
       const result = await caller.list({ limit: 10, cursor: "outcome-5" });
       expect(result.outcomes).toHaveLength(10);
@@ -71,4 +86,3 @@ describe("Outcomes Router — read", () => {
     });
   });
 });
-
